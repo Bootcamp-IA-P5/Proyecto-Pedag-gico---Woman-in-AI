@@ -215,3 +215,31 @@ runs/
 src/data/
 models/models_org_3
 .clinerules
+# ========================
+# Node / Frontend
+# ========================
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Vite
+.vite/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ========================
+# DevContainer / Docker
+# ========================
+.devcontainer/docker-compose.override.yml
+
+# ========================
+# Mac / Windows basura
+# ========================
+.DS_Store
+Thumbs.db

@@ -1,0 +1,20 @@
+[project]
+name = "vertice-backend"
+version = "0.1.0"
+description = "Análisis de sesgos de género en letras de canciones en español"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.2.0",
+    "requests>=2.32.0",
+    "lyricsgenius>=3.0.1",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]

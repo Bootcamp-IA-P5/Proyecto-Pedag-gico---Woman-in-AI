@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 .github
 .node_repl_history
-.gitignore
 # C extensions
 *.so
 

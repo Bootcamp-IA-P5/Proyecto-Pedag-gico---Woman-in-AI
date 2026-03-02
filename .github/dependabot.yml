@@ -1,6 +1,8 @@
 version: 2
+updates: []
+#version: 2
 
-updates:
+#updates:
 #  - package-ecosystem: "pip"
 #    directory: "/backend"
 #    schedule:

@@ -1,7 +1,8 @@
 version: 2
 updates: []
-#version: 2
 
+
+#version: 2.1
 #updates:
 #  - package-ecosystem: "pip"
 #    directory: "/backend"

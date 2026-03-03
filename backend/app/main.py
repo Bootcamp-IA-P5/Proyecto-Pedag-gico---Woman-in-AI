@@ -1,5 +1,12 @@
+from fastapi import FastAPI
 from app.src.scraper.spotify_scraper import obtener_top_canciones
 from app.src.processor.upload_to_supabase import subir_cancion
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"message": "Bienvenido al agente de scraping de canciones"}
 
 def iniciar_agente():
     url_objetivo = "https://www.ejemplo-de-ranking.com" # Cambia esto por la URL real

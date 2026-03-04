@@ -45,7 +45,7 @@ def ejecutar_scraper_lyrics():
 
     if not canciones:
         print("ℹ️  No hay canciones pendientes.")
-        print("   Ejecuta primero scraping_deezer_paraguay.py")
+        print("   Ejecuta primero todos los scraping primero")
         return
 
     completadas = 0

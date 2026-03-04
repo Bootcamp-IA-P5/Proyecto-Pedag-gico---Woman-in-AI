@@ -34,8 +34,14 @@ def ejecutar_scraper_deezer_paraguay():
     tracks = obtener_tracks_playlist(PLAYLISTS_DEEZER[PAIS], PAIS)
 
     # Paso 2 — Guardar el ranking en Supabase
-    guardar_ranking_raw(PAIS, str(PLAYLISTS_DEEZER[PAIS]), fecha_scraping)
-    ranking_id = guardar_ranking_limpio(PAIS)
+    guardar_ranking_raw(
+        PAIS,
+        str(PLAYLISTS_DEEZER[PAIS]),
+        fecha_scraping,
+        fuente="deezer",
+        url_source=str(PLAYLISTS_DEEZER[PAIS]),
+    )
+    ranking_id = guardar_ranking_limpio(PAIS, fuente="deezer")
 
     # Paso 3 — Guardar cada canción y su posición
     print(f"\n📋 Guardando {len(tracks)} canciones...\n")

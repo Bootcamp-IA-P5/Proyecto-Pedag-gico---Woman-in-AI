@@ -5,12 +5,45 @@ Importa el cliente que ya tienes en config/supabase_client.py
 from datetime import date
 from app.src.config.supabase_client import supabase   
 
-def guardar_ranking_raw(pais: str, playlist_id: str, fecha_scraping: str) -> int:
+def guardar_ranking_raw(
+    pais: str,
+    playlist_id: str,
+    fecha_scraping: str,
+    fuente: str = "spotify",
+    url_source: str | None = None,
+    title_raw: str | None = None,
+    artist_raw: str = "Varios",
+    extra_data: dict | None = None,
+) -> int:
+    # Construye valores por defecto en función de la fuente, manteniendo
+    # el comportamiento actual para Spotify si no se pasan overrides.
+    if url_source is None:
+        if fuente == "spotify":
+            url_source = f"https://open.spotify.com/playlist/{playlist_id}"
+        elif fuente == "deezer":
+            url_source = f"https://www.deezer.com/playlist/{playlist_id}"
+        else:
+            # Fallback genérico: almacena el identificador tal cual.
+            url_source = str(playlist_id)
+
+    if title_raw is None:
+        if fuente == "spotify":
+            title_raw = f"Top 50 {pais}"
+        else:
+            title_raw = f"Top {pais}"
+
+    if extra_data is None:
+        extra_data = {"playlist_id": playlist_id}
+
     resultado = supabase.table("rankings_raw").insert({
-        "source": "spotify", "country": pais, "scraping_date": fecha_scraping,
-        "position": 1, "title_raw": f"Top 50 {pais}", "artist_raw": "Varios",
-        "url_source": f"https://open.spotify.com/playlist/{playlist_id}",
-        "extra_data": {"playlist_id": playlist_id},
+        "source": fuente,
+        "country": pais,
+        "scraping_date": fecha_scraping,
+        "position": 1,
+        "title_raw": title_raw,
+        "artist_raw": artist_raw,
+        "url_source": url_source,
+        "extra_data": extra_data,
     }).execute()
     print(f"💾 rankings_raw → id: {resultado.data[0]['id']}")
     return resultado.data[0]["id"]

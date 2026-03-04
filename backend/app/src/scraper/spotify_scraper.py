@@ -1,44 +1,42 @@
-
+"""
+backend/app/src/scraper/spotify_scraper.py
+Solo descarga tracks de Spotify. No toca Supabase.
+"""
 import requests
-from bs4 import BeautifulSoup
 
-def obtener_top_canciones(url_lista):
-    """
-    Entra a una web y saca una lista de canciones.
-    """
-    print(f"🕵️ Buscando canciones en: {url_lista}")
-    
-    # 1. Pedimos permiso a la página
-    headers = {"User-Agent": "Mozilla/5.0"}
-    respuesta = requests.get(url_lista, headers=headers)
-    
-    if respuesta.status_code != 200:
-        print("❌ No pude entrar a la web")
-        return []
-
-    # 2. Empezamos a "limpiar" el HTML
-    sopa = BeautifulSoup(respuesta.text, 'html.parser')
-    canciones_encontradas = []
-
-    # --- NOTA PARA EL EQUIPO ---
-    # Aquí es donde cada una ajustará según la página que elijan.
-    # Ejemplo genérico (esto varía según la web):
-    filas = sopa.find_all('tr') # Supongamos que están en una tabla
-
-    for fila in filas:
-        try:
-            titulo = fila.find('h3').text.strip()
-            artista = fila.find('span', class_='artist').text.strip()
-            
-            canciones_encontradas.append({
-                "title": titulo,
-                "artist": artista,
-                "ranking_position": 1, # Esto se puede autoincrementar
-                "streams": 0,
-                "genre": "Desconocido",
-                "lyrics": ""
-            })
-        except:
+def obtener_tracks_playlist(token: str, playlist_id: str, pais: str) -> list[dict]:
+    respuesta = requests.get(
+        f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"limit": 50, "fields": "items(track(id,name,artists,album,duration_ms,popularity,external_urls))"},
+        timeout=10
+    )
+    respuesta.raise_for_status()
+    tracks = []
+    for posicion, item in enumerate(respuesta.json().get("items", []), start=1):
+        track = item.get("track")
+        if not track:
             continue
-
-    return canciones_encontradas
+        artista_principal = track["artists"][0]["name"] if track["artists"] else "Desconocido"
+        release_date      = track["album"].get("release_date", "")
+        tracks.append({
+            "ranking_position": posicion,
+            "title":            track["name"],
+            "artist":           artista_principal,
+            "streams":          track["popularity"],
+            "genre":            None,
+            "lyrics":           None,
+            "album":            track["album"]["name"],
+            "year":             int(release_date[:4]) if len(release_date) >= 4 else None,
+            "duration_seg":     track["duration_ms"] // 1000,
+            "language_variant": None,
+            "source":           "spotify",
+            "url_source":       track["external_urls"].get("spotify", ""),
+            "lyrics_status":    "pending",
+            "extra_data":       {"spotify_track_id": track["id"], "todos_artistas": ", ".join([a["name"] for a in track["artists"]]), "pais": pais, "posicion": posicion},
+            "_posicion":        posicion,
+            "_title_raw":       track["name"],
+            "_artist_raw":      artista_principal,
+        })
+    print(f"✅ {len(tracks)} tracks obtenidos ({pais})")
+    return tracks

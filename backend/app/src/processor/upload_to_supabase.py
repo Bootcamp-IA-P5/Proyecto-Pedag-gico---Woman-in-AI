@@ -1,11 +1,9 @@
-"""
-Solo operaciones de escritura en Supabase. No sabe nada de Spotify.
-Importa el cliente que ya tienes en config/supabase_client.py
-"""
-from app.src.config.supabase_client import supabase
+import time
 from datetime import date, datetime
+from app.src.config.supabase_client import supabase
 
 
+# ─── Guardar ranking raw ──────────────────────────────────────────────
 def guardar_ranking_raw(
     pais: str,
     playlist_id: str,
@@ -25,90 +23,108 @@ def guardar_ranking_raw(
             url_source = str(playlist_id)
 
     if title_raw is None:
-        if fuente == "spotify":
-            title_raw = f"Top 50 {pais}"
-        else:
-            title_raw = f"Top {pais}"
+        title_raw = f"Top {pais}" if fuente != "spotify" else f"Top 50 {pais}"
 
     if extra_data is None:
         extra_data = {"playlist_id": playlist_id}
 
-    resultado = supabase.table("rankings_raw").insert({
-        "source":        fuente,
-        "country":       pais,
-        "scraping_date": fecha_scraping,
-        "position":      1,
-        "title_raw":     title_raw,
-        "artist_raw":    artist_raw,
-        "url_source":    url_source,
-        "extra_data":    extra_data,
-    }).execute()
-    print(f"💾 rankings_raw → id: {resultado.data[0]['id']}")
-    return resultado.data[0]["id"]
+    try:
+        resultado = supabase.table("rankings_raw").insert({
+            "source":        fuente,
+            "country":       pais,
+            "scraping_date": fecha_scraping,
+            "position":      1,
+            "title_raw":     title_raw,
+            "artist_raw":    artist_raw,
+            "url_source":    url_source,
+            "extra_data":    extra_data,
+        }).execute()
+        print(f"💾 rankings_raw → id: {resultado.data[0]['id']}")
+        return resultado.data[0]["id"]
+    except Exception as e:
+        print(f"❌ Error guardando ranking_raw: {e}")
+        raise
 
 
+# ─── Guardar ranking limpio ───────────────────────────────────────────
 def guardar_ranking_limpio(pais: str, fuente: str = "deezer") -> int:
-    existente = supabase.table("rankings") \
-        .select("id") \
-        .eq("country", pais) \
-        .eq("source", fuente) \
-        .eq("ranking_date", date.today().isoformat()) \
-        .execute()
+    try:
+        existente = supabase.table("rankings") \
+            .select("id") \
+            .eq("country", pais) \
+            .eq("source", fuente) \
+            .eq("ranking_date", date.today().isoformat()) \
+            .execute()
 
-    if existente.data:
-        ranking_id = existente.data[0]["id"]
-        print(f"⏭️  Ranking de hoy ya existe → id: {ranking_id}")
+        if existente.data:
+            ranking_id = existente.data[0]["id"]
+            print(f"⏭️ Ranking de hoy ya existe → id: {ranking_id}")
+            return ranking_id
+
+        resultado = supabase.table("rankings").insert({
+            "source":       fuente,
+            "country":      pais,
+            "ranking_date": date.today().isoformat(),
+        }).execute()
+        ranking_id = resultado.data[0]["id"]
+        print(f"💾 rankings → id: {ranking_id}")
         return ranking_id
 
-    resultado = supabase.table("rankings").insert({
-        "source":       fuente,
-        "country":      pais,
-        "ranking_date": date.today().isoformat(),
-    }).execute()
-    ranking_id = resultado.data[0]["id"]
-    print(f"💾 rankings → id: {ranking_id}")
-    return ranking_id
+    except Exception as e:
+        print(f"❌ Error guardando ranking limpio: {e}")
+        raise
 
 
+# ─── Guardar canción ─────────────────────────────────────────────────
 def guardar_cancion(track: dict) -> tuple[int, bool]:
-    # Busca sin importar mayusculas o minusculas
-    existente = supabase.table("songs") \
-        .select("id") \
-        .ilike("title", track["title"]) \
-        .execute()
+    """
+    Detecta duplicados por title + artist (normalizados) y actualiza o inserta.
+    Devuelve (song_id, es_nueva: bool)
+    """
+    try:
+        existente = supabase.table("songs") \
+            .select("id") \
+            .ilike("title", track["title"]) \
+            .limit(1) \
+            .execute()
 
-    if existente.data:
-        song_id = existente.data[0]["id"]
-        # Actualiza siempre con los datos normalizados
-        supabase.table("songs").update({
-            "title":            track.get("title"),
-            "artist":           track.get("artist"),
-            "album":            track.get("album"),
-            "genre":            track.get("genre"),
-            "language_variant": track.get("language_variant"),
-            "extra_data":       track.get("extra_data"),
-        }).eq("id", song_id).execute()
-        print(f"  🔄 Actualizado: {track['artist']} — {track['title']}")
-        return song_id, False
+        if existente.data:
+            song_id = existente.data[0]["id"]
+            supabase.table("songs").update({
+                "title":            track.get("title"),
+                "artist":           track.get("artist"),
+                "album":            track.get("album"),
+                "genre":            track.get("genre"),
+                "language_variant": track.get("language_variant"),
+                "extra_data":       track.get("extra_data"),
+            }).eq("id", song_id).execute()
+            print(f"🔄 Actualizado: {track['artist']} — {track['title']}")
+            return song_id, False
 
-    campos = {k: v for k, v in track.items() if not k.startswith("_")}
-    resultado = supabase.table("songs").insert(campos).execute()
-    song_id = resultado.data[0]["id"]
-    print(f"  ✅ Nueva: {track['artist']} — {track['title']} [{song_id}]")
-    return song_id, True
+        campos = {k: v for k, v in track.items() if not k.startswith("_")}
+        resultado = supabase.table("songs").insert(campos).execute()
+        song_id = resultado.data[0]["id"]
+        print(f"✅ Nueva: {track['artist']} — {track['title']} [{song_id}]")
+        return song_id, True
+
+    except Exception as e:
+        print(f"❌ Error guardando canción {track.get('title')}: {e}")
+        raise
 
 
+# ─── Guardar posición en ranking ──────────────────────────────────────
 def guardar_posicion_ranking(ranking_id: int, song_id: int, posicion: int):
-    supabase.table("ranking_songs").upsert(
-        {"ranking_id": ranking_id, "song_id": song_id, "position": posicion},
-        on_conflict="ranking_id,song_id"
-    ).execute()
+    try:
+        supabase.table("ranking_songs").upsert(
+            {"ranking_id": ranking_id, "song_id": song_id, "position": posicion},
+            on_conflict="ranking_id,song_id"
+        ).execute()
+    except Exception as e:
+        print(f"⚠️ Error insertando en ranking_songs: ranking_id={ranking_id}, song_id={song_id}: {e}")
 
 
-# ─── Funciones para letras (Etapa 2) ──────────────────────────────────────────
-
+# ─── Funciones para letras ────────────────────────────────────────────
 def obtener_canciones_pendientes(limite: int = 50) -> list[dict]:
-    """Lee songs donde lyrics_status = 'pending'."""
     resultado = supabase.table("songs") \
         .select("id, title, artist") \
         .eq("lyrics_status", "pending") \
@@ -119,7 +135,6 @@ def obtener_canciones_pendientes(limite: int = 50) -> list[dict]:
 
 
 def letra_ya_existe(song_id: int) -> bool:
-    """Comprueba si ya existe una letra para esta cancion en lyrics."""
     resultado = supabase.table("lyrics") \
         .select("id") \
         .eq("song_id", song_id) \
@@ -128,7 +143,6 @@ def letra_ya_existe(song_id: int) -> bool:
 
 
 def guardar_letra_raw(song_id: int, letra: dict) -> int:
-    """Guarda la letra cruda en lyrics_raw."""
     resultado = supabase.table("lyrics_raw").insert({
         "song_id":           song_id,
         "lyrics_text":       letra["lyrics_text"],
@@ -136,13 +150,12 @@ def guardar_letra_raw(song_id: int, letra: dict) -> int:
         "source":            letra["source"],
         "url_source":        letra["url_source"],
         "scraping_date":     datetime.utcnow().isoformat(),
-        "extra_data":        letra["extra_data"],
+        "extra_data":        letra.get("extra_data", {}),
     }).execute()
     return resultado.data[0]["id"]
 
 
 def guardar_letra(song_id: int, letra: dict) -> int:
-    """Guarda la letra limpia en lyrics."""
     resultado = supabase.table("lyrics").insert({
         "song_id":           song_id,
         "lyrics_text":       letra["lyrics_text"],
@@ -156,29 +169,26 @@ def guardar_letra(song_id: int, letra: dict) -> int:
 
 
 def marcar_completado(song_id: int):
-    """Actualiza lyrics_status = 'completed' en songs."""
-    supabase.table("songs") \
-        .update({"lyrics_status": "completed"}) \
-        .eq("id", song_id) \
-        .execute()
+    supabase.table("songs").update({"lyrics_status": "completed"}).eq("id", song_id).execute()
 
 
 def marcar_error(song_id: int, motivo: str):
-    """Actualiza lyrics_status = 'error' en songs y guarda el motivo."""
-    supabase.table("songs") \
-        .update({
+    try:
+        resultado = supabase.table("songs").select("extra_data").eq("id", song_id).execute()
+        extra = resultado.data[0].get("extra_data", {}) if resultado.data else {}
+        extra["error_letra"] = motivo
+        supabase.table("songs").update({
             "lyrics_status": "error",
-            "extra_data":    {"error_letra": motivo}
-        }) \
-        .eq("id", song_id) \
-        .execute()
+            "extra_data": extra
+        }).eq("id", song_id).execute()
+    except Exception as e:
+        print(f"⚠️ Error marcando error para song_id={song_id}: {e}")
 
 
 def guardar_letra_completa(song_id: int, letra: dict) -> int:
     """
-    Llama a guardar_letra_raw, guardar_letra y marcar_completado.
-    Al final avisa a top_songs que ya hay letra.
-    Devuelve el lyrics_id.
+    Guarda raw + limpio + marca completado y avisa a top_songs.
+    Devuelve lyrics_id
     """
     from app.src.processor.master_tables import marcar_lyrics_en_top
 

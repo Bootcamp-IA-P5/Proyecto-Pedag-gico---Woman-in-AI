@@ -2,8 +2,8 @@
 Solo operaciones de escritura en Supabase. No sabe nada de Spotify.
 Importa el cliente que ya tienes en config/supabase_client.py
 """
-from datetime import date
-from app.src.config.supabase_client import supabase   
+from app.src.config.supabase_client import supabase  
+from datetime import date, datetime 
 
 def guardar_ranking_raw(
     pais: str,
@@ -88,3 +88,83 @@ def guardar_posicion_ranking(ranking_id: int, song_id: int, posicion: int):
         {"ranking_id": ranking_id, "song_id": song_id, "position": posicion},
         on_conflict="ranking_id,song_id"
     ).execute()
+
+# ─── Funciones para letras (Etapa 2) ─────────────────────────────────────────
+
+def obtener_canciones_pendientes(limite: int = 50) -> list[dict]:
+    """Lee songs donde lyrics_status = 'pending'."""
+    resultado = supabase.table("songs") \
+        .select("id, title, artist") \
+        .eq("lyrics_status", "pending") \
+        .limit(limite) \
+        .execute()
+    print(f"📋 {len(resultado.data)} canciones pendientes de letra")
+    return resultado.data
+
+
+def letra_ya_existe(song_id: int) -> bool:
+    """Comprueba si ya existe una letra para esta canción en lyrics."""
+    resultado = supabase.table("lyrics") \
+        .select("id") \
+        .eq("song_id", song_id) \
+        .execute()
+    return len(resultado.data) > 0
+
+
+def guardar_letra_raw(song_id: int, letra: dict) -> int:
+    """
+    Guarda la letra cruda en lyrics_raw.
+
+    Columnas exactas de lyrics_raw:
+      song_id, lyrics_text, language_detected, source,
+      url_source, scraping_date, extra_data
+    """
+    resultado = supabase.table("lyrics_raw").insert({
+        "song_id":           song_id,
+        "lyrics_text":       letra["lyrics_text"],
+        "language_detected": letra["language_detected"],
+        "source":            letra["source"],
+        "url_source":        letra["url_source"],
+        "scraping_date":     datetime.utcnow().isoformat(),
+        "extra_data":        letra["extra_data"],
+    }).execute()
+    return resultado.data[0]["id"]
+
+
+def guardar_letra(song_id: int, letra: dict) -> int:
+    """
+    Guarda la letra limpia en lyrics.
+
+    Columnas exactas de lyrics:
+      song_id, lyrics_text, lyrics_hash, word_count,
+      verse_count, language_detected, source
+    """
+    resultado = supabase.table("lyrics").insert({
+        "song_id":           song_id,
+        "lyrics_text":       letra["lyrics_text"],
+        "lyrics_hash":       letra["lyrics_hash"],
+        "word_count":        letra["word_count"],
+        "verse_count":       letra["verse_count"],
+        "language_detected": letra["language_detected"],
+        "source":            letra["source"],
+    }).execute()
+    return resultado.data[0]["id"]
+
+
+def marcar_completado(song_id: int):
+    """Actualiza lyrics_status = 'completed' en songs."""
+    supabase.table("songs") \
+        .update({"lyrics_status": "completed"}) \
+        .eq("id", song_id) \
+        .execute()
+
+
+def marcar_error(song_id: int, motivo: str):
+    """Actualiza lyrics_status = 'error' en songs y guarda el motivo."""
+    supabase.table("songs") \
+        .update({
+            "lyrics_status": "error",
+            "extra_data":    {"error_letra": motivo}
+        }) \
+        .eq("id", song_id) \
+        .execute()

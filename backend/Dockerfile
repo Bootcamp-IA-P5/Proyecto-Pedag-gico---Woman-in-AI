@@ -21,13 +21,3 @@ RUN mkdir -p data
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
----
-
-## Qué hace cada variable
-```
-UV_SYSTEM_PYTHON=1          → usa /usr/local/bin/python3, nunca crea .venv
-UV_NO_CACHE=1               → imagen más limpia, sin caché interna
-UV_NO_ENV_FILE=1            → no lee .env dentro del contenedor (las vars vienen de Render/docker-compose)
-UV_PROJECT_ENVIRONMENT=/usr/local → doble seguro, apunta explícitamente al sistema

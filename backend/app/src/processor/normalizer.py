@@ -16,14 +16,37 @@ groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Países
 PAISES_ISO = {
+    # Existentes y corregidos
     "PY": "PY", "PARAGUAY": "PY",
-    "ES": "ES", "ESPANA": "ES", "SPAIN": "ES",
+    "ES": "ES", "ESPANA": "ES", "ESPAÑA": "ES", "SPAIN": "ES",
     "MX": "MX", "MEXICO": "MX",
     "AR": "AR", "ARGENTINA": "AR",
     "CO": "CO", "COLOMBIA": "CO",
     "CL": "CL", "CHILE": "CL",
     "PE": "PE", "PERU": "PE",
-    "US": "US", "USA": "US", "ESTADOS UNIDOS": "US",
+    "US": "US", "USA": "US", "ESTADOS UNIDOS": "US", "UNITED STATES": "US",
+
+    # Cono Sur
+    "UY": "UY", "URUGUAY": "UY",
+    "BR": "BR", "BRASIL": "BR", "BRAZIL": "BR",
+
+    # Región Andina
+    "VE": "VE", "VENEZUELA": "VE",
+    "EC": "EC", "ECUADOR": "EC",
+    "BO": "BO", "BOLIVIA": "BO",
+
+    # Centroamérica
+    "CR": "CR", "COSTA RICA": "CR",
+    "PA": "PA", "PANAMA": "PA",
+    "GT": "GT", "GUATEMALA": "GT",
+    "HN": "HN", "HONDURAS": "HN",
+    "SV": "SV", "EL SALVADOR": "SV",
+    "NI": "NI", "NICARAGUA": "NI",
+
+    # Caribe
+    "DO": "DO", "REPUBLICA DOMINICANA": "DO", "DOMINICAN REPUBLIC": "DO",
+    "PR": "PR", "PUERTO RICO": "PR",
+    "CU": "CU", "CUBA": "CU",
 }
 
 # Sesión de títulos procesados
@@ -61,7 +84,10 @@ def limpiar_texto(texto: str | None) -> str | None:
     # Colapsar espacios
     texto = re.sub(r'\s+', ' ', texto)
     # Unir letras separadas: q u e v a s → quevas
-    texto = re.sub(r'\b(\w)(\s\w)+\b', lambda m: m.group(0).replace(' ', ''), texto)
+    texto = re.sub(
+    r'\b(?:[a-z]\s){2,}[a-z]\b',
+    lambda m: m.group(0).replace(' ', ''),
+    texto)
     return texto.strip()
 
 def normalizar_pais(pais: str | None) -> str | None:

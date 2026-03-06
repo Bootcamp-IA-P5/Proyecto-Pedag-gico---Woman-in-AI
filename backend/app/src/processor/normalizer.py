@@ -6,6 +6,7 @@ import unicodedata
 from dotenv import load_dotenv
 import google.generativeai as genai
 from groq import Groq
+from difflib import SequenceMatcher
 
 load_dotenv()
 
@@ -52,42 +53,86 @@ PAISES_ISO = {
 # Sesión de títulos procesados
 _titulos_sesion: set[str] = set()
 
-# ─── Limpieza de texto ─────────────────────────────────────────────
-def quitar_tildes(texto: str) -> str:
-    texto = unicodedata.normalize("NFKD", texto)
-    return "".join(c for c in texto if not unicodedata.combining(c))
 
+def quitar_tildes(texto):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+# ─── Limpieza de texto ─────────────────────────────────────────────
 def limpiar_texto(texto: str | None) -> str | None:
     if not texto:
         return None
 
     texto = texto.strip()
+
     # Quitar emojis
     texto = re.sub(r'[\U00010000-\U0010ffff]', '', texto)
-    # Quitar paréntesis y corchetes problemáticos
-    texto = re.sub(r'\(.*?\)|\[.*?\]', '', texto)
+
+    # 🔧 CAMBIO 1
+    # Antes eliminabas todo dentro del paréntesis.
+    # Ahora mantenemos "remix" si aparece.
+
+    def _procesar_parentesis(match):
+        contenido = match.group(1)
+
+        if re.search(r'\bremix\b', contenido, re.IGNORECASE):
+            return " remix "
+
+        return " "
+
+    texto = re.sub(r'\((.*?)\)', _procesar_parentesis, texto)
+
+    # eliminar corchetes completamente
+    texto = re.sub(r'\[.*?\]', ' ', texto)
+
     # Quitar feat, ft, featuring, with
     texto = re.sub(r'\b(feat|ft|featuring|with)\b.*', '', texto, flags=re.IGNORECASE)
+
     # Quitar tildes y poner minúsculas
     texto = quitar_tildes(texto).lower()
+
     # Separadores y guiones → espacio
     texto = re.sub(r'[\/\|#\\~\^*+=<>@%]', ' ', texto)
     texto = re.sub(r'(?<=\w)-(?=\w)', ' ', texto)
+
     # Quitar comillas y signos
     texto = re.sub(r'[\"\'`´\u201c\u201d\u2018\u2019!¡?¿]', '', texto)
+
     # Quitar caracteres no latinos
     texto = re.sub(r'[^\x00-\x7F\u00C0-\u024F]', '', texto)
+
     # Solo letras, números y espacios
     texto = re.sub(r'[^a-z0-9\s]', ' ', texto)
+
     # Quitar números aislados 2-4 dígitos
     texto = re.sub(r'\b\d{2,4}\b', '', texto)
+
     # Colapsar espacios
     texto = re.sub(r'\s+', ' ', texto)
+
     # Unir letras separadas: q u e v a s → quevas
     texto = re.sub(
-    r'\b(?:[a-z]\s){2,}[a-z]\b',
-    lambda m: m.group(0).replace(' ', ''),
-    texto)
+        r'\b(?:[a-z]\s){2,}[a-z]\b',
+        lambda m: m.group(0).replace(' ', ''),
+        texto
+    )
+
+    # 🔧 CAMBIO 2
+    # eliminar letras repetidas (despacitooo → despacito)
+    texto = re.sub(r'(.)\1{2,}', r'\1', texto)
+
+    # 🔧 CAMBIO 3
+    # corregir error común despasito → despacito
+    texto = texto.replace("pasito", "pacito")
+
+    # 🔧 CAMBIO 4
+    # normalizar remix para evitar duplicados
+    if re.search(r'\bremix\b', texto):
+        texto = re.sub(r'\bremix\b', '', texto)
+        texto = texto.strip() + " remix"
+
     return texto.strip()
 
 def normalizar_pais(pais: str | None) -> str | None:
@@ -107,22 +152,45 @@ def normalizar_track_sin_llm(track: dict) -> dict:
     track["extra_data"]["pais"] = normalizar_pais(pais)
     return track
 
+def similitud(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
 # ─── Detección de duplicados ──────────────────────────────────────
 def es_duplicado(title_limpio: str) -> bool:
     from app.src.config.supabase_client import supabase
+
     if title_limpio in _titulos_sesion:
         print(f"  🚫 Duplicado en sesión: {title_limpio}")
         return True
+
     try:
-        resultado = supabase.table("songs").select("id, genre").ilike("title", title_limpio).limit(1).execute()
-        if resultado.data:
-            _titulos_sesion.add(title_limpio)
-            if resultado.data[0].get("genre") is None:
-                return False
-            print(f"  ⏭️ Ya existe en Supabase: {title_limpio}")
-            return True
+        # buscar títulos parecidos
+        resultado = (
+            supabase
+            .table("songs")
+            .select("id,title,genre")
+            .ilike("title", f"%{title_limpio[:6]}%")
+            .limit(20)
+            .execute()
+        )
+
+        for row in resultado.data:
+
+            titulo_db = row["title"]
+
+            # comparar similitud
+            if similitud(title_limpio, titulo_db) > 0.92:
+                _titulos_sesion.add(title_limpio)
+
+                if row.get("genre") is None:
+                    return False
+
+                print(f"  ⏭️ Similar encontrado: {titulo_db}")
+                return True
+
     except Exception:
         pass
+
     _titulos_sesion.add(title_limpio)
     return False
 

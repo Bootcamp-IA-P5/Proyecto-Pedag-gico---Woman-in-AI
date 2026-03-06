@@ -84,7 +84,6 @@ def normalizar_letra_super_analitica(letra: str) -> dict:
     num_versos = len(versos)
 
     estrofas = []
-    temp_estrofa = []
     for v in letra_limpia.split('\n\n'):
         est = [x.strip() for x in v.split('\n') if x.strip()]
         if est:

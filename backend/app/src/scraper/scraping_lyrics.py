@@ -30,7 +30,7 @@ from app.src.processor.upload_to_supabase import (
 
 # ─── Configuración ────────────────────────────────────────────────────────────
 
-BATCH_SIZE            = 50    # canciones por ejecución
+BATCH_SIZE            = 100    # canciones por ejecución
 PAUSA_ENTRE_CANCIONES = 2.0   # segundos — evita que Genius bloquee
 
 

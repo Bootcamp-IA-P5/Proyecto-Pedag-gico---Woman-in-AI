@@ -34,4 +34,3 @@ def procesar_track(track: dict, country: str):
         year=track.get("year"),
         genre=track.get("genre"),
     )
-EOF

@@ -61,7 +61,10 @@ def limpiar_texto(texto: str | None) -> str | None:
     # Colapsar espacios
     texto = re.sub(r'\s+', ' ', texto)
     # Unir letras separadas: q u e v a s → quevas
-    texto = re.sub(r'\b(\w)(\s\w)+\b', lambda m: m.group(0).replace(' ', ''), texto)
+    texto = re.sub(
+    r'\b(?:[a-z]\s){2,}[a-z]\b',
+    lambda m: m.group(0).replace(' ', ''),
+    texto)
     return texto.strip()
 
 def normalizar_pais(pais: str | None) -> str | None:

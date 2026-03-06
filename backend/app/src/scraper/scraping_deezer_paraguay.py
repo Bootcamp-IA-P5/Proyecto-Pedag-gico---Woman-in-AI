@@ -84,7 +84,7 @@ def ejecutar_scraper_deezer_paraguay():
     print(f"   ⏭️ Ya existían      : {existentes}")
     print(f"   ⚠️ Ignoradas       : {ignoradas}")
     print(f"   📊 ranking_id       : {ranking_id}")
-    print(f"   ⏳ Siguiente        : lyrics_scraper.py")
+    print("   ⏳ Siguiente        : lyrics_scraper.py")
     print("="*45)
 
 if __name__ == "__main__":

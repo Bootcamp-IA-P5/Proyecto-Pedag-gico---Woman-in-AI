@@ -18,7 +18,7 @@ Qué hace paso a paso:
 
 import time
 
-from app.src.scraper.lyrics_scraper       import buscar_letra
+from app.src.scraper.lyrics_fetcher       import buscar_letra
 from app.src.processor.upload_to_supabase import (
     obtener_canciones_pendientes,
     letra_ya_existe,
@@ -60,14 +60,14 @@ def ejecutar_scraper_lyrics():
 
         # Evitar reprocesar si ya tiene letra
         if letra_ya_existe(song_id):
-            print(f"  ⏭️  Ya tiene letra, saltando")
+            print("  ⏭️  Ya tiene letra, saltando")
             continue
 
         # Paso 2 — Buscar letra en Genius
         letra = buscar_letra(title, artist)
 
         if not letra:
-            print(f"  ❌ No encontrada en Genius")
+            print("  ❌ No encontrada en Genius")
             marcar_error(song_id, "No encontrada en Genius")
             errores += 1
             time.sleep(PAUSA_ENTRE_CANCIONES)
@@ -95,12 +95,12 @@ def ejecutar_scraper_lyrics():
 
     # Resumen
     print("\n" + "=" * 45)
-    print(f"✅ Scraper letras completado")
+    print("✅ Scraper letras completado")
     print(f"   ✔ Completadas : {completadas}")
     print(f"   ✖ Errores     : {errores}")
     print(f"   📊 Total       : {completadas + errores}")
     if errores > 0:
-        print(f"   ℹ️  Los errores tienen lyrics_status = 'error' en songs")
+        print("   ℹ️  Los errores tienen lyrics_status = 'error' en songs")
     print("=" * 45)
 
 

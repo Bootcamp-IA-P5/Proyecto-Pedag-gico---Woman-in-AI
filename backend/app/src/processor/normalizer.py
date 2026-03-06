@@ -3,18 +3,17 @@ import re
 import json
 import time
 import unicodedata
+import requests as http_requests
 from dotenv import load_dotenv
-import google.generativeai as genai
 from groq import Groq
 from difflib import SequenceMatcher
 
 load_dotenv()
 
 # LLMs
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
+OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+groq_client  = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # Países
 PAISES_ISO = {
     # Existentes y corregidos
@@ -223,9 +222,20 @@ def parsear_respuesta_llm(contenido: str) -> dict:
     contenido = re.sub(r'^```json|^```|```$', '', contenido, flags=re.MULTILINE).strip()
     return json.loads(contenido)
 
-def llamar_gemini(prompt: str) -> dict:
-    respuesta = gemini_model.generate_content(prompt)
-    return parsear_respuesta_llm(respuesta.text.strip())
+def llamar_ollama(prompt: str) -> dict:
+    respuesta = http_requests.post(
+        f"{OLLAMA_URL}/api/chat",
+        json={
+            "model":    OLLAMA_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream":   False,
+            "options":  {"temperature": 0},
+        },
+        timeout=60,
+    )
+    respuesta.raise_for_status()
+    contenido = respuesta.json()["message"]["content"]
+    return parsear_respuesta_llm(contenido.strip())
 
 def llamar_groq(prompt: str) -> dict:
     respuesta = groq_client.chat.completions.create(
@@ -241,11 +251,10 @@ def normalizar_track_con_llm(track: dict) -> dict:
     prompt = PROMPT_TEMPLATE.format(title=title, artist=artist)
     datos = None
     try:
-        datos = llamar_gemini(prompt)
-        print(f"  🟢 Gemini: {title} → {datos.get('genero')} | {datos.get('idioma')}")
-        time.sleep(1)
-    except Exception as e_gemini:
-        print(f"  ⚠️ Gemini falló: {e_gemini}")
+        datos = llamar_ollama(prompt)
+        print(f"  🟣 Ollama: {title} → {datos.get('genero')} | {datos.get('idioma')}")
+    except Exception as e_ollama:
+        print(f"  ⚠️ Ollama falló: {e_ollama}")
         try:
             datos = llamar_groq(prompt)
             print(f"  🟡 Groq: {title} → {datos.get('genero')} | {datos.get('idioma')}")

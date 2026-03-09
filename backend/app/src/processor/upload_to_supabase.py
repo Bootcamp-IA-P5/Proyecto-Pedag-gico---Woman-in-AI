@@ -82,7 +82,7 @@ def guardar_cancion(track: dict) -> tuple[int, bool]:
     Devuelve (song_id, es_nueva: bool)
     """
     try:
-        existente = supabase.table("songs") \
+        existente = supabase.table("lyrics") \
             .select("id") \
             .ilike("title", track["title"]) \
             .limit(1) \
@@ -90,7 +90,7 @@ def guardar_cancion(track: dict) -> tuple[int, bool]:
 
         if existente.data:
             song_id = existente.data[0]["id"]
-            supabase.table("songs").update({
+            supabase.table("lyrics").update({
                 "title":            track.get("title"),
                 "artist":           track.get("artist"),
                 "album":            track.get("album"),
@@ -102,7 +102,7 @@ def guardar_cancion(track: dict) -> tuple[int, bool]:
             return song_id, False
 
         campos = {k: v for k, v in track.items() if not k.startswith("_")}
-        resultado = supabase.table("songs").insert(campos).execute()
+        resultado = supabase.table("lyrics").insert(campos).execute()
         song_id = resultado.data[0]["id"]
         print(f"✅ Nueva: {track['artist']} — {track['title']} [{song_id}]")
         return song_id, True
@@ -125,7 +125,7 @@ def guardar_posicion_ranking(ranking_id: int, song_id: int, posicion: int):
 
 # ─── Funciones para letras ────────────────────────────────────────────
 def obtener_canciones_pendientes(limite: int = 50) -> list[dict]:
-    resultado = supabase.table("songs") \
+    resultado = supabase.table("lyrics") \
         .select("id, title, artist") \
         .eq("lyrics_status", "pending") \
         .limit(limite) \
@@ -169,15 +169,15 @@ def guardar_letra(song_id: int, letra: dict) -> int:
 
 
 def marcar_completado(song_id: int):
-    supabase.table("songs").update({"lyrics_status": "completed"}).eq("id", song_id).execute()
+    supabase.table("lyrics").update({"lyrics_status": "completed"}).eq("id", song_id).execute()
 
 
 def marcar_error(song_id: int, motivo: str):
     try:
-        resultado = supabase.table("songs").select("extra_data").eq("id", song_id).execute()
+        resultado = supabase.table("lyrics").select("extra_data").eq("id", song_id).execute()
         extra = resultado.data[0].get("extra_data", {}) if resultado.data else {}
         extra["error_letra"] = motivo
-        supabase.table("songs").update({
+        supabase.table("lyrics").update({
             "lyrics_status": "error",
             "extra_data": extra
         }).eq("id", song_id).execute()

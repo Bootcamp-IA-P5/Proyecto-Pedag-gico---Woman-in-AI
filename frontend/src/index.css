@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 230 25% 7%;
+    --foreground: 220 20% 92%;
+
+    --card: 232 25% 10%;
+    --card-foreground: 220 20% 92%;
+
+    --popover: 232 28% 12%;
+    --popover-foreground: 220 20% 92%;
+
+    --primary: 265 90% 65%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 70% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 230 20% 15%;
+    --muted-foreground: 220 15% 55%;
+
+    --accent: 195 95% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 232 20% 18%;
+    --input: 232 20% 18%;
+    --ring: 265 90% 65%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --neon-purple: 265 90% 65%;
+    --neon-blue: 220 85% 60%;
+    --neon-cyan: 195 95% 55%;
+    --neon-pink: 330 85% 60%;
+    --neon-green: 155 80% 50%;
+
+    --glass-bg: 232 25% 10%;
+    --glass-border: 232 20% 20%;
+    --glass-highlight: 265 90% 65%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(265 90% 65%), hsl(220 85% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(195 95% 55%), hsl(265 90% 65%));
+    --gradient-warm: linear-gradient(135deg, hsl(330 85% 60%), hsl(265 90% 65%));
+    --gradient-surface: linear-gradient(180deg, hsl(232 25% 12%), hsl(230 25% 7%));
+
+    --shadow-neon: 0 0 20px hsl(265 90% 65% / 0.15);
+    --shadow-neon-strong: 0 0 40px hsl(265 90% 65% / 0.25);
+    --shadow-card: 0 8px 32px hsl(230 25% 3% / 0.5);
+
+    --sidebar-background: 230 25% 5%;
+    --sidebar-foreground: 220 15% 70%;
+    --sidebar-primary: 265 90% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 232 25% 12%;
+    --sidebar-accent-foreground: 220 20% 92%;
+    --sidebar-border: 232 20% 14%;
+    --sidebar-ring: 265 90% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/60 backdrop-blur-xl border border-glass-border;
+  }
+  .glass-strong {
+    @apply bg-card/80 backdrop-blur-2xl border border-glass-border;
+  }
+  .glow-purple {
+    box-shadow: 0 0 20px hsl(265 90% 65% / 0.2), 0 0 60px hsl(265 90% 65% / 0.1);
+  }
+  .glow-blue {
+    box-shadow: 0 0 20px hsl(220 85% 60% / 0.2), 0 0 60px hsl(220 85% 60% / 0.1);
+  }
+  .glow-cyan {
+    box-shadow: 0 0 20px hsl(195 95% 55% / 0.2), 0 0 60px hsl(195 95% 55% / 0.1);
+  }
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(265 90% 65%), hsl(220 85% 60%));
+  }
+  .text-gradient-accent {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(195 95% 55%), hsl(265 90% 65%));
+  }
+  .bg-gradient-primary {
+    background-image: linear-gradient(135deg, hsl(265 90% 65%), hsl(220 85% 60%));
+  }
+  .bg-gradient-accent {
+    background-image: linear-gradient(135deg, hsl(195 95% 55%), hsl(265 90% 65%));
+  }
+  .bg-gradient-warm {
+    background-image: linear-gradient(135deg, hsl(330 85% 60%), hsl(265 90% 65%));
+  }
+  .bg-gradient-surface {
+    background-image: linear-gradient(180deg, hsl(232 25% 12%), hsl(230 25% 7%));
+  }
+  .bg-grid-pattern {
+    background-image:
+      linear-gradient(hsl(232 20% 15% / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(232 20% 15% / 0.5) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(232 20% 20%) transparent;
+  }
+}
+
+/* Recharts customization */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(232 20% 15%);
+}
+.recharts-text {
+  fill: hsl(220 15% 55%);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+}

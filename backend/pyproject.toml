@@ -18,6 +18,8 @@ dependencies = [
     "isodate>=0.7.2",
     "google-genai>=1.66.0",
     "python-levenshtein>=0.27.3",
+    "musicbrainzngs>=0.7.1",
+    "langdetect>=1.0.9",
 ]
 
 [dependency-groups]

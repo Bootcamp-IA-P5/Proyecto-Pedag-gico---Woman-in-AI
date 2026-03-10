@@ -166,7 +166,7 @@ def es_duplicado(title_limpio: str) -> bool:
         # buscar títulos parecidos
         resultado = (
             supabase
-            .table("songs")
+            .table("lyrics")
             .select("id,title,genre")
             .ilike("title", f"%{title_limpio[:6]}%")
             .limit(20)

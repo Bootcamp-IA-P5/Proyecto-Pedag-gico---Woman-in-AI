@@ -29,7 +29,7 @@ musicbrainzngs.set_useragent("ScraperLetras", "1.0", str(MUSICBRAINZ_EMAIL or "b
 ARTISTAS_EXTRA = [
     "rosalia", "c-tangana", "bad-bunny", "quevedo", "rauw-alejandro",
     "bizarrap", "feid", "karol-g", "ozuna", "anuel-aa", "j-balvin",
-    "shakira", "maluma", "duki", "bizarrap"
+    "shakira", "maluma", "duki"
 ]
 
 

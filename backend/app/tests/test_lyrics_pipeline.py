@@ -1,11 +1,23 @@
 """
 Tests locales para verificar el scraping de letras y la normalización con Groq.
-No dependen de Supabase — solo usan Genius API + BeautifulSoup + Groq.
+No dependen de Supabase — solo usan letras.com + BeautifulSoup + Groq.
 
 Ejecutar con:
     cd backend
     PYTHONPATH=. python -m pytest app/tests/test_lyrics_pipeline.py -v -s
 """
+import os
+import sys
+
+# Configuramos variables de entorno FALSAS antes de importar 
+# para que el cliente de Supabase no lance error al cargar el archivo.
+os.environ["SUPABASE_URL"] = "http://fake-test-url.com"
+os.environ["SUPABASE_KEY"] = "fake-test-key"
+
+# Solucionamos problemas de certificados SSL en algunos entornos Mac
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 from app.src.scraper.scraping_BeautifSoup_espana import (
     buscar_url_letra,
     scrape_lyrics,
@@ -14,19 +26,19 @@ from app.src.scraper.scraping_BeautifSoup_espana import (
 from app.src.processor.normalize_lyrics import normalizar_letra
 
 
-# ─── Test 1: Buscar la URL de una canción conocida en Genius ───────────────────
+# ─── Test 1: Buscar la URL de una canción conocida en letras.com ───────────────
 def test_buscar_url_letra():
-    """Verifica que la búsqueda en Genius devuelve una URL válida."""
+    """Verifica que se genera una URL válida para letras.com."""
     url = buscar_url_letra("Bad Bunny", "Tití Me Preguntó")
-    print(f"\n🔍 URL encontrada: {url}")
-    assert url is not None, "No se encontró URL en Genius"
-    assert "genius.com" in url, f"URL no es de Genius: {url}"
+    print(f"\n🔍 URL generada: {url}")
+    assert url is not None, "No se generó URL"
+    assert "letras.com" in url, f"URL no es de letras.com: {url}"
 
 
 # ─── Test 2: Scraping de letras con BeautifulSoup ─────────────────────────────
 def test_scrape_lyrics():
-    """Verifica que BeautifulSoup extrae la letra de una página de Genius."""
-    # Usamos una URL conocida de Genius
+    """Verifica que BeautifulSoup extrae la letra de una página de letras.com."""
+    # Usamos una URL conocida de letras.com
     url = buscar_url_letra("Rosalía", "Malamente")
     assert url is not None, "No se pudo encontrar la canción para test"
 
@@ -41,7 +53,8 @@ def test_scrape_lyrics():
 # ─── Test 3: Función completa obtener_letra ────────────────────────────────────
 def test_obtener_letra():
     """Verifica el flujo completo: búsqueda + scraping."""
-    lyrics = obtener_letra("Shakira", "Waka Waka")
+    # Usamos una canción claramente en español
+    lyrics = obtener_letra("Quevedo", "Columbia")
     print(f"\n📝 Letra completa ({len(lyrics)} chars):")
     print(lyrics[:300] + "...")
 

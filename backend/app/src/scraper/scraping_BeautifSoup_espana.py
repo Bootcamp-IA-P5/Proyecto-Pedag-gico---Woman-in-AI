@@ -1,6 +1,5 @@
 """
 Scraper de letras de canciones con filtros estrictos:
-- Solo canciones de los últimos 3 años
 - Solo letras en español
 
 Dependencias:
@@ -17,17 +16,21 @@ from bs4 import BeautifulSoup
 from langdetect import detect, LangDetectException
 import os
 from supabase import create_client
+from app.src.config.BeautifulSoup_config import (
+    SUPABASE_URL,
+    SUPABASE_KEY,
+    MUSICBRAINZ_EMAIL,
+    HEADERS,
+    obtener_sesion
+)
 
 
 # Configuración de MusicBrainz (obligatorio identificarse)
-musicbrainzngs.set_useragent("ScraperLetras", "1.0", "[MUSICBRAINZ_EMAIL]")
+musicbrainzngs.set_useragent("ScraperLetras", "1.0", str(MUSICBRAINZ_EMAIL or "bot@ejemplo.com"))
 
 # ──────────────────────────────────────────────
 # CONFIGURACIÓN SUPABASE
 # ──────────────────────────────────────────────
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ──────────────────────────────────────────────
@@ -91,15 +94,15 @@ def limpiar_para_url(texto: str) -> str:
 
 
 def limpiar_letra(texto: str) -> str:
-    """Elimina onomatopeyas, saltos de línea y espacios del texto de la letra."""
+    """Elimina onomatopeyas y colapsa espacios del texto de la letra."""
     texto = re.sub(
         r'\b(eh|ah|oh|uh|mm+|hm+|na+|la+|ra+|ta+|pa+|ba+|ja+|ha+|ye+|wo+|ay+|ey+)\b',
         '',
         texto,
         flags=re.IGNORECASE
     )
-    # Todo en una sola cadena sin espacios ni saltos
-    texto = re.sub(r'\s+', '', texto)
+    # Colapsar saltos y espacios múltiples en uno solo
+    texto = re.sub(r'\s+', ' ', texto)
     return texto.strip()
 
 
@@ -107,24 +110,17 @@ def limpiar_letra(texto: str) -> str:
 # SCRAPING
 # ──────────────────────────────────────────────
 
-def scrape_lyrics(url: str) -> str | None:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-        "Referer": "https://www.letras.com/",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-    }
+def scrape_lyrics(url: str, session=None) -> str | None:
+    """Extrae la letra de una URL usando BeautifulSoup."""
     try:
-        session = requests.Session()
-        session.get("https://www.letras.com/", headers=headers, timeout=10)
-        time.sleep(1)
-
-        response = session.get(url, headers=headers, timeout=10)
-
+        # Si no nos pasan sesión, creamos una rápida (menos eficiente)
+        if session is None:
+            session = requests.Session()
+            session.headers.update(HEADERS)
+        
+        response = session.get(url, timeout=10)
+        
         if response.status_code != 200:
-            print(f"  ❌ Status {response.status_code}")
             return None
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -157,13 +153,24 @@ def scrape_lyrics(url: str) -> str | None:
 
 
 # ──────────────────────────────────────────────
+# URL GENERATION
+# ──────────────────────────────────────────────
+
+def buscar_url_letra(artist: str, title: str) -> str | None:
+    """Genera la URL candidata principal en letras.com para una canción."""
+    artist_url = limpiar_para_url(artist)
+    title_url = limpiar_para_url(title)
+    return f"https://www.letras.com/{artist_url}/{title_url}/"
+
+
+# ──────────────────────────────────────────────
 # FUNCIÓN PRINCIPAL
 # ──────────────────────────────────────────────
 
 def obtener_letra(artist: str, title: str) -> str:
     """
     Obtiene la letra de una canción aplicando los filtros obligatorios:
-      1. La canción debe ser de los últimos 3 años.
+      1. Se identifica el año de la canción (informativo).
       2. La letra debe estar en español.
 
     Devuelve la letra limpia o un mensaje de error si no cumple las reglas.
@@ -185,12 +192,16 @@ def obtener_letra(artist: str, title: str) -> str:
     ]
 
     texto_crudo = None
-    for url in urls:
-        print(f"  🌐 Probando: {url}")
-        texto_crudo = scrape_lyrics(url)
-        if texto_crudo:
-            break
-        time.sleep(1.5)
+    try:
+        session = obtener_sesion()
+        for url in urls:
+            print(f"  🌐 Probando: {url}")
+            texto_crudo = scrape_lyrics(url, session=session)
+            if texto_crudo:
+                break
+            time.sleep(1.5)
+    except Exception as e:
+        print(f"  ⚠️ Error de sesión: {e}")
 
     if not texto_crudo:
         return f"❌ No se encontró la letra de '{title}' en ninguna URL."
@@ -212,7 +223,7 @@ if __name__ == "__main__":
     print("Iniciando scraping automático de letras...")
 
     # 1. Traer canciones desde Supabase que no tengan letra
-    respuesta = supabase.table("lyrics").select("id, artist, title").is_("lyrics", "null").execute()
+    respuesta = supabase.table("songs").select("id, artist, title").is_("lyrics", "null").execute()
     canciones_pendientes = respuesta.data
 
     if not canciones_pendientes:
@@ -234,7 +245,7 @@ if __name__ == "__main__":
             else:
                 # 2. Actualizar la base de datos con la nueva letra
                 try:
-                    supabase.table("lyrics").update({"lyrics": resultado}).eq("id", cancion_id).execute()
+                    supabase.table("songs").update({"lyrics": resultado}).eq("id", cancion_id).execute()
                     print(f"✅ LOGRADO y guardado en BD.")
                 except Exception as e:
                     print(f"⚠️ Error al guardar en Supabase: {e}")

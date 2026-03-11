@@ -1,47 +1,77 @@
 import time
 import requests
-from datetime import datetime
 from app.src.config.spotify_config import obtener_token_spotify
 from app.src.processor.upload_to_supabase import guardar_cancion
 from app.src.processor.normalizer import normalizar_track, reset_sesion
-from app.src.scraper.spotify_scraper import obtener_tracks_playlist
 
 PAIS = "CO"
 PAIS_NOMBRE = "Colombia"
 
-
 def buscar_canciones_colombianas(token: str) -> list[dict]:
-    # Debido a las nuevas políticas de Spotify (Error 403 en Playlists públicas de terceros),
-    # debemos buscar las canciones directamente, simulando las playlists mediante queries avanzadas.
+    # Estrategia de 'Ataque profundo y ancho': Buscando multiplicidad de géneros hasta offset 400.
     queries = [
-        "colombia viral",
-        "éxitos colombia 2025",
-        "éxitos colombia 2024",
-        "genre:vallenato year:2024-2026",
-        "genre:champeta year:2024-2026",
         "genre:reggaeton colombia",
+        "genre:vallenato",
+        "genre:champeta",
+        "genre:cumbia",
+        "genre:merengue",
+        "genre:bachata",
+        "genre:salsa colombia",
+        "genre:latin pop",
+        "genre:latin trap",
+        "genre:urbano",
+        "colombia viral 2026",
+        "colombia viral 2025"
     ]
 
     tracks_totales = []
 
     for query in queries:
-        print(f"\n🔎 Buscando directamente Tracks (simulando playlist): '{query}'")
-        # Offset ampliado para no traer siempre los mismos resultados de la primera página
-        for offset in [0, 10, 20, 30, 40]:  
-            respuesta = requests.get(
-                "https://api.spotify.com/v1/search",
-                headers={"Authorization": f"Bearer {token}"},
-                params={"q": query, "type": "track", "limit": 10, "offset": offset, "market": PAIS},
-                timeout=10,
-            )
-            if respuesta.status_code != 200:
+        print(f"\n🔎 Buscando Tracks (Spotify Search): '{query}'")
+        # Extendemos el offset considerablemente para esquivar los duplicados recurrentes
+        for offset in range(0, 400, 10):
+            intento = 0
+            respuesta = None
+            while intento < 2:
+                respuesta = requests.get(
+                    "https://api.spotify.com/v1/search",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"q": query, "type": "track", "limit": 10, "offset": offset, "market": PAIS},
+                    timeout=10,
+                )
+                if respuesta.status_code == 200:
+                    break
+
+                try:
+                    cuerpo_respuesta = respuesta.text[:200]
+                except Exception:
+                    cuerpo_respuesta = "<no se pudo leer cuerpo de respuesta>"
+
+                if respuesta.status_code == 401:
+                    print("[INFO] Token expirado. Intentando renovarlo...")
+                    token = obtener_token_spotify()
+                    intento += 1
+                    continue
+
+                if respuesta.status_code == 429:
+                    retry_after = respuesta.headers.get("Retry-After")
+                    espera = int(retry_after) if retry_after else 5
+                    print(f"[INFO] Rate limit. Esperando {espera}s...")
+                    time.sleep(espera)
+                    intento += 1
+                    continue
+
+                break
+
+            if respuesta is None or respuesta.status_code != 200:
                 continue
 
             items = respuesta.json().get("tracks", {}).get("items", [])
+            # Si en algún offset ya no hay resultados de este género, pasamos al siguiente género.
             if not items:
                 break
 
-            for index, track in enumerate(items, start=1):
+            for track in items:
                 if not track:
                     continue
                 
@@ -70,14 +100,14 @@ def buscar_canciones_colombianas(token: str) -> list[dict]:
                 }
                 tracks_totales.append(track_data)
                 
-            time.sleep(1)  # Respetar limites de API
+            time.sleep(1)  # Respetando Rate Limits de Spotify Search API
 
-    print(f"\n✅ Se recolectaron {len(tracks_totales)} tracks en bruto usando {len(queries)} consultas virales.")
+    print(f"\n✅ Se recolectaron {len(tracks_totales)} tracks en bruto listos para IA.")
     return tracks_totales
 
 
 def ejecutar_subida_colombiana():
-    print(f"\n🇨🇴  Subida Histórica/Viral {PAIS_NOMBRE} — Spotify (Por Playlists)")
+    print(f"\n🇨🇴  Subida Masiva Multigénero {PAIS_NOMBRE} — Spotify")
     print("=" * 50)
 
     reset_sesion()
@@ -89,7 +119,6 @@ def ejecutar_subida_colombiana():
     vistos = set()
 
     for track in tracks:
-        # Remover duplicados en bruto rápidamente
         key = f"{track['artist']} - {track['title']}".lower()
         if key in vistos:
             continue
@@ -98,27 +127,21 @@ def ejecutar_subida_colombiana():
         print(f"\n⚙️  Procesando: {track['artist']} - {track['title']}")
 
         try:
-            # Paso por el embudo de IA
             track_normalizado = normalizar_track(track)
-
             if track_normalizado is None:
-                print(f"   ⏭️  Ignorado por el normalizador (fuera de regla o duplicado)")
+                print(f"   ⏭️  Ignorado (fuera de regla o duplicado)")
                 ignoradas += 1
                 continue
 
-            # Upsert en DB usando función oficial maestra
             song_id, es_nueva = guardar_cancion(track_normalizado)
-
             if es_nueva:
                 nuevas += 1
             else:
                 existentes += 1
-
         except Exception as e:
-            print(f"   ❌ Error guardando: {e}")
+            print(f"   ❌ Error: {e}")
             fallidas += 1
 
-        # Respetar Rate limit para IA (2 a 3 segundos)
         time.sleep(2.5)
 
     print("\n" + "=" * 50)
@@ -128,7 +151,6 @@ def ejecutar_subida_colombiana():
     print(f"   ⚠️  Ignoradas por IA/filtro      : {ignoradas}")
     print(f"   ❌ Fallidas con error          : {fallidas}")
     print("=" * 50)
-
 
 if __name__ == "__main__":
     ejecutar_subida_colombiana()

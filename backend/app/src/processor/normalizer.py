@@ -231,7 +231,7 @@ def llamar_ollama(prompt: str) -> dict:
             "stream":   False,
             "options":  {"temperature": 0},
         },
-        timeout=60,
+        timeout=1,
     )
     respuesta.raise_for_status()
     contenido = respuesta.json()["message"]["content"]

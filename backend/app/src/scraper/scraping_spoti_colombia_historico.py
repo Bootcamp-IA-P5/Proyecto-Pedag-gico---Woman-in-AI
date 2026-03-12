@@ -129,11 +129,11 @@ def ejecutar_subida_colombiana():
         try:
             track_normalizado = normalizar_track(track)
             if track_normalizado is None:
-                print(f"   ⏭️  Ignorado (fuera de regla o duplicado)")
+                print("   ⏭️  Ignorado (fuera de regla o duplicado)")
                 ignoradas += 1
                 continue
 
-            song_id, es_nueva = guardar_cancion(track_normalizado)
+            _song_id, es_nueva = guardar_cancion(track_normalizado)
             if es_nueva:
                 nuevas += 1
             else:

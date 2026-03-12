@@ -2,7 +2,8 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+.github
+.node_repl_history
 # C extensions
 *.so
 
@@ -243,3 +244,9 @@ pnpm-debug.log*
 # ========================
 .DS_Store
 Thumbs.db
+# Archivos pesados de configuración que no quieres
+backend/uv.lock
+backend/test_connection.py
+
+# Carpetas de datos vacías (opcional)
+data/**

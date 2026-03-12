@@ -15,10 +15,20 @@ dependencies = [
     "pydantic>=2.12.5",
     "groq>=1.1.1",
     "python-multipart>=0.0.22",
+    "supabase>=2.28.0",
+    "beautifulsoup4>=4.14.3",
+    "spotipy>=2.25.2",
+    "groq>=1.0.0",
+    "isodate>=0.7.2",
+    "google-genai>=1.66.0",
+    "python-levenshtein>=0.27.3",
+    "musicbrainzngs>=0.7.1",
+    "langdetect>=1.0.9",
+
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
     "ruff>=0.4.0",
 ]

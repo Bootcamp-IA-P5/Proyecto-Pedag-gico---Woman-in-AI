@@ -17,9 +17,10 @@
 
     // Esto es lo que instala TODO automáticamente al abrir el proyecto
     //"postCreateCommand": "uv sync --frozen --python /usr/local/bin/python3 && npm --prefix frontend install",
+    // Esto es lo que instala TODO automáticamente al abrir el proyecto, pero sin congelar las dependencias de Python (para que dependabot pueda actualizar)
 
     "postCreateCommand": "uv sync --python /usr/local/bin/python3 --project backend && npm --prefix frontend install",
-    "postStartCommand": "uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
+    "postStartCommand": "export PYTHONPATH=$PYTHONPATH:$(pwd)/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
 
     "mounts": [
         "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",

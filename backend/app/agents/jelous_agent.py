@@ -23,7 +23,7 @@ Tu tarea es identificar fragmentos que reflejen:
 - Interrogatorios sobre la vida social o sentimental de la pareja
 
 NO confundas con:
-- Expresiones de amor intenso sin componente de control
+- Expresiones de amor intenso sin componente de controles
 - Tristeza o nostalgia por una ruptura sin actitudes controladoras
 - Admiración o deseo mutuo y consentido
 

@@ -1,0 +1,36 @@
+# docker-compose.yml
+# Raíz del proyecto (/workspaces/Vertice/)
+# Levanta backend + frontend juntos con: docker-compose up --build
+
+services:
+
+  # ── BACKEND ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vertice-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env        # carga todas las variables de entorno del .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── FRONTEND ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000   # en local apunta al backend local
+    container_name: vertice-frontend
+    ports:
+      - "5173:80"             # accesible en http://localhost:5173
+    depends_on:
+      - backend
+    restart: unless-stopped

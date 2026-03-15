@@ -89,9 +89,9 @@ def ejecutar_pipeline(pais: str = "ES", limite: int = 50):
     # Resumen final
     print("\n" + "=" * 60)
     print("📊 RESUMEN DEL PIPELINE")
-    print("   Total procesadas: {total}")
-    print("   ✅ Éxitos: {exitos}")
-    print("   ❌ No encontradas: {errores}")
+    print(f"   Total procesadas: {total}")
+    print(f"   ✅ Éxitos: {exitos}")
+    print(f"   ❌ No encontradas: {errores}")
     print("=" * 60)
 
 

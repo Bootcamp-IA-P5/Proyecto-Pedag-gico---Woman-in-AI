@@ -6,7 +6,7 @@
         "dockerfile": "Dockerfile.dev"
     },
 
-    "remoteUser": "vscode",
+    "remoteUser": "root",
 
     "containerEnv": {
         "UV_SYSTEM_PYTHON": "1",
@@ -15,17 +15,13 @@
         "UV_PROJECT_ENVIRONMENT": "/usr/local"
     },
 
-    // Esto es lo que instala TODO automáticamente al abrir el proyecto
-    //"postCreateCommand": "uv sync --frozen --python /usr/local/bin/python3 && npm --prefix frontend install",
-    // Esto es lo que instala TODO automáticamente al abrir el proyecto, pero sin congelar las dependencias de Python (para que dependabot pueda actualizar)
-
     "postCreateCommand": "uv sync --python /usr/local/bin/python3 --project backend && npm --prefix frontend install",
-    "postStartCommand": "export PYTHONPATH=$PYTHONPATH:$(pwd)/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
-
+    "postStartCommand": "GROUP_ID=$(stat -c '%g' /var/run/docker.sock) && (getent group docker | grep -q :${GROUP_ID}: || groupmod -g ${GROUP_ID} docker) && export PYTHONPATH=$PYTHONPATH:$(pwd)/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
     "mounts": [
-        "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
-        "source=npm-cache,target=/home/vscode/.npm,type=volume"
-    ],
+    "source=uv-cache,target=/root/.cache/uv,type=volume",
+    "source=npm-cache,target=/root/.npm,type=volume",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+],
 
     "customizations": {
         "vscode": {
@@ -36,8 +32,8 @@
                 "charliermarsh.ruff",
                 "dsznajder.es7-react-js-snippets",
                 "esbenp.prettier-vscode",
-                "bradlc.vscode-tailwindcss",     
-                "ms-vscode.vscode-typescript-next" 
+                "bradlc.vscode-tailwindcss",
+                "ms-vscode.vscode-typescript-next"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/usr/local/bin/python3",

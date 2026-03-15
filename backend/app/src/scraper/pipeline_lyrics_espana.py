@@ -1,6 +1,4 @@
 """
-backend/app/src/scraper/pipeline_lyrics_espana.py
-
 Pipeline completo:
   1. Lee canciones pendientes de Supabase (lyrics_status = 'pending')
   2. Busca y extrae la letra con Genius + BeautifulSoup
@@ -60,11 +58,11 @@ def ejecutar_pipeline(pais: str = "ES", limite: int = 50):
                 "lyrics_status": "not_found"
             }).eq("id", song_id).execute()
             errores += 1
-            print(f"  📝 Marcada como 'not_found'")
+            print("  📝 Marcada como 'not_found'")
             continue
 
         # 3. Normalizar con Groq
-        print(f"  🤖 Normalizando con Groq...")
+        print("  🤖 Normalizando con Groq...")
         lyrics_clean = normalizar_letra(lyrics_raw)
 
         if not lyrics_clean:
@@ -73,7 +71,7 @@ def ejecutar_pipeline(pais: str = "ES", limite: int = 50):
                 "lyrics": lyrics_raw,
                 "lyrics_status": "raw"
             }).eq("id", song_id).execute()
-            print(f"  ⚠️ Groq falló — guardada versión cruda")
+            print("  ⚠️ Groq falló — guardada versión cruda")
             exitos += 1
             continue
 
@@ -83,14 +81,14 @@ def ejecutar_pipeline(pais: str = "ES", limite: int = 50):
             "lyrics_status": "done"
         }).eq("id", song_id).execute()
         exitos += 1
-        print(f"  ✅ Letra normalizada y guardada")
+        print("  ✅ Letra normalizada y guardada")
 
         # Pausa breve para no saturar las APIs
         time.sleep(2)
 
     # Resumen final
     print("\n" + "=" * 60)
-    print(f"📊 RESUMEN DEL PIPELINE")
+    print("📊 RESUMEN DEL PIPELINE")
     print(f"   Total procesadas: {total}")
     print(f"   ✅ Éxitos: {exitos}")
     print(f"   ❌ No encontradas: {errores}")

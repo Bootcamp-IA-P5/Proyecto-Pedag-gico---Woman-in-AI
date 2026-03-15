@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "vertice": "./app/src/analysis/graph.py:grafo_vertice"
+  },
+  "env": ".env"
+}

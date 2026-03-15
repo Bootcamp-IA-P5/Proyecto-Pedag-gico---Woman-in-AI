@@ -24,7 +24,16 @@ dependencies = [
     "python-levenshtein>=0.27.3",
     "musicbrainzngs>=0.7.1",
     "langdetect>=1.0.9",
-
+    "langchain>=1.2.11",
+    "langchain-core>=1.2.18",
+    "langchain-google-genai>=4.2.1",
+    "langchain-ollama>=1.0.1",
+    "langsmith>=0.7.16",
+    "langgraph>=1.1.0",
+    "scipy>=1.17.1",
+    "langgraph-cli[inmem]>=0.4.15",
+    "openai>=2.26.0",
+    "typing-extensions>=4.15.0",
 ]
 
 [dependency-groups]

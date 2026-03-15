@@ -17,7 +17,7 @@ jobs:
 
       - name: Instalar dependencias
         working-directory: ./backend
-        run: uv sync --frozen
+        run: uv sync
         env:
           UV_SYSTEM_PYTHON: "1"
 
@@ -29,12 +29,14 @@ jobs:
         working-directory: ./backend
         run: uv run pytest
         env:
-          DATABASE_URL: sqlite:///./data/bias_songs.db
-          MODEL_NAME: ${{ secrets.MODEL_NAME }}
-          MODEL_VERSION: ${{ secrets.MODEL_VERSION }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GENIUS_ACCESS_TOKEN: ${{ secrets.GENIUS_ACCESS_TOKEN }}
-          ENVIRONMENT: test
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          OPEN_ROUTER_KEY:     ${{ secrets.OPEN_ROUTER_KEY }}
+          OPEN_ROUTER_URL:     ${{ secrets.OPEN_ROUTER_URL }}
+          OPEN_ROUTER_MODEL:   ${{ secrets.OPEN_ROUTER_MODEL }}
+          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
+          LANGCHAIN_TRACING_V2: "false"   # no trazas en CI
+          ENVIRONMENT:         test
 
   frontend:
     runs-on: ubuntu-latest
@@ -59,4 +61,4 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env

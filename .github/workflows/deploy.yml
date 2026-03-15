@@ -5,68 +5,12 @@ on:
     branches: [main]
 
 jobs:
+  # Solo despliega en push a main
   deploy:
     runs-on: ubuntu-latest
-    needs: []  # Render se encarga del build, solo disparamos el webhook
     steps:
       - name: Deploy backend a Render
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
 
       - name: Deploy frontend a Render
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"
-```
-
----
-
-## Secrets en GitHub
-
-Settings → Secrets and variables → Actions → New repository secret:
-```
-OPENAI_API_KEY
-GENIUS_ACCESS_TOKEN
-MODEL_NAME
-MODEL_VERSION
-DATABASE_URL
-VITE_BACKEND_URL          → https://bias-songs-backend.onrender.com
-RENDER_DEPLOY_HOOK_BACKEND → lo genera Render en Settings del servicio
-RENDER_DEPLOY_HOOK_FRONTEND → lo genera Render en Settings del servicio
-```
-
----
-
-## Cómo lo configuras en Render (gratuito)
-
-**Backend:**
-- New Web Service → conectas tu repo de GitHub
-- Environment: Docker
-- Dockerfile path: `./backend/Dockerfile`
-- Añades las env vars: `OPENAI_API_KEY`, `GENIUS_ACCESS_TOKEN`, `DATABASE_URL`, `MODEL_NAME`, `MODEL_VERSION`, `ENVIRONMENT=production`
-- Disk: añades un disco persistente montado en `/app/data` (aquí vive el SQLite)
-
-**Frontend:**
-- New Static Site → conectas tu repo
-- Build command: `cd frontend && npm ci && npm run build`
-- Publish directory: `frontend/dist`
-- Env var: `VITE_BACKEND_URL=https://bias-songs-backend.onrender.com`
-
-> El frontend en Render como Static Site **no usa Docker**, usa el build directo. Más rápido y sigue siendo gratis.
-
----
-
-## Flujo completo resumido
-```
-Desarrollo local
-  └── docker-compose up --build
-        backend en localhost:8000
-        frontend en localhost:80
-
-Push a develop
-  └── GitHub Actions corre ci.yml
-        lint + tests backend
-        lint + build frontend
-        si falla → no llega a main
-
-PR a main aprobado y mergeado
-  └── GitHub Actions corre deploy.yml
-        llama webhook Render backend → Render hace docker build ./backend/Dockerfile
-        llama webhook Render frontend → Render hace npm build y sirve /dist

@@ -6,7 +6,7 @@ ENV UV_NO_CACHE=1
 ENV UV_NO_ENV_FILE=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 COPY pyproject.toml uv.lock* ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 COPY . .
 RUN mkdir -p data
 EXPOSE 8000

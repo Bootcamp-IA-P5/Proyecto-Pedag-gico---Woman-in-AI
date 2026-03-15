@@ -251,3 +251,5 @@ backend/test_connection.py
 # Carpetas de datos vacías (opcional)
 data/**
 
+backend/.langgraph_api/
+*.pckl

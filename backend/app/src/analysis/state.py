@@ -1,4 +1,3 @@
-# backend/src/analysis/state.py
 # La "mochila" que viaja por el grafo.
 # Empieza con la letra y va acumulando resultados.
 from typing_extensions import TypedDict

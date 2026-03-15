@@ -5,6 +5,7 @@ import httpx
 from abc import ABC
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 PROVEEDORES = {
@@ -13,10 +14,10 @@ PROVEEDORES = {
         "key":   os.getenv("GROQ_API_KEY"),
         "model": "llama-3.3-70b-versatile",
     },
-    "github": {
-        "url":   "https://models.inference.ai.azure.com/chat/completions",
-        "key":   os.getenv("GITHUB_TOKEN"),
-        "model": os.getenv("GITHUB_MODEL_EVALUADOR_1", "openai/gpt-4o-mini"),
+    "openrouter": {
+        "url":   os.getenv("OPEN_ROUTER_URL"),
+        "key":   os.getenv("OPEN_ROUTER_KEY"),
+        "model": os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.5-flash"),
     },
 }
 

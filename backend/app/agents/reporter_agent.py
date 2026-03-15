@@ -22,46 +22,46 @@ class ReporterAgent:
     async def analizar(self, letra: str) -> dict:
         # PASO 1: 4 agentes × 2 modelos = 8 llamadas en paralelo
         tareas_groq   = [a.analizar(letra, proveedor="groq")   for a in self.agentes]
-        tareas_github = [a.analizar(letra, proveedor="github") for a in self.agentes]
+        tareas_openrouter = [a.analizar(letra, proveedor="openrouter") for a in self.agentes]
 
-        resultados_groq, resultados_github = await asyncio.gather(
+        resultados_groq, resultados_openrouter = await asyncio.gather(
             asyncio.gather(*tareas_groq,   return_exceptions=True),
-            asyncio.gather(*tareas_github, return_exceptions=True),
+            asyncio.gather(*tareas_openrouter, return_exceptions=True),
         )
 
         # PASO 2: juez revisa cada par
         dimensiones_finales = []
         errores = []
 
-        for agente, res_groq, res_github in zip(
-            self.agentes, resultados_groq, resultados_github
+        for agente, res_groq, res_openrouter in zip(
+            self.agentes, resultados_groq, resultados_openrouter
         ):
             if isinstance(res_groq, Exception):
                 errores.append({"dimension": agente.dimension, "error": f"groq: {str(res_groq)}"})
                 continue
-            if isinstance(res_github, Exception):
-                errores.append({"dimension": agente.dimension, "error": f"github: {str(res_github)}"})
+            if isinstance(res_openrouter, Exception):
+                errores.append({"dimension": agente.dimension, "error": f"openrouter: {str(res_openrouter)}"})
                 continue
 
             try:
-                veredicto = await self.juez.juzgar(letra, res_groq, res_github)
+                veredicto = await self.juez.juzgar(letra, res_groq, res_openrouter)
             except Exception as e:
                 errores.append({"dimension": agente.dimension, "error": f"juez: {str(e)}"})
                 veredicto = {
-                    "puntuacion_final":  round((res_groq["puntuacion"] + res_github["puntuacion"]) / 2),
-                    "hay_discrepancia":  abs(res_groq["puntuacion"] - res_github["puntuacion"]) >= 2,
+                    "puntuacion_final":  round((res_groq["puntuacion"] + res_openrouter["puntuacion"]) / 2),
+                    "hay_discrepancia":  abs(res_groq["puntuacion"] - res_openrouter["puntuacion"]) >= 2,
                 }
 
             dimensiones_finales.append({
                 "dimension":         agente.dimension,
                 "puntuacion_groq":   res_groq["puntuacion"],
-                "puntuacion_github": res_github["puntuacion"],
+                "puntuacion_openrouter": res_openrouter["puntuacion"],
                 "fragmentos_groq":   res_groq["fragmentos"],
-                "fragmentos_github": res_github["fragmentos"],
+                "fragmentos_openrouter": res_openrouter["fragmentos"],
                 "puntuacion_final":  veredicto.get("puntuacion_final", 0),
                 "hay_discrepancia":  veredicto.get("hay_discrepancia", False),
                 "juez_groq":         veredicto.get("evaluacion_groq", {}),
-                "juez_github":       veredicto.get("evaluacion_github", {}),
+                "juez_openrouter":   veredicto.get("evaluacion_openrouter", {}),
             })
 
         # PASO 3: consolidar

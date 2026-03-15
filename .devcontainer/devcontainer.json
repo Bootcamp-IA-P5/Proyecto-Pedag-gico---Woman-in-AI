@@ -16,12 +16,12 @@
     },
 
     "postCreateCommand": "uv sync --python /usr/local/bin/python3 --project backend && npm --prefix frontend install",
-"postStartCommand": "chmod 666 /var/run/docker.sock && export PYTHONPATH=$PYTHONPATH:$(pwd)/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
+    "postStartCommand": "GROUP_ID=$(stat -c '%g' /var/run/docker.sock) && (getent group docker | grep -q :${GROUP_ID}: || groupmod -g ${GROUP_ID} docker) && export PYTHONPATH=$PYTHONPATH:$(pwd)/backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
     "mounts": [
-        "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
-        "source=npm-cache,target=/home/vscode/.npm,type=volume",
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-    ],
+    "source=uv-cache,target=/root/.cache/uv,type=volume",
+    "source=npm-cache,target=/root/.npm,type=volume",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+],
 
     "customizations": {
         "vscode": {

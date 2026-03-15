@@ -246,7 +246,7 @@ if __name__ == "__main__":
                 # 2. Actualizar la base de datos con la nueva letra
                 try:
                     supabase.table("songs").update({"lyrics": resultado}).eq("id", cancion_id).execute()
-                    print(f"✅ LOGRADO y guardado en BD.")
+                    print("✅ LOGRADO y guardado en BD.")
                 except Exception as e:
                     print(f"⚠️ Error al guardar en Supabase: {e}")
             

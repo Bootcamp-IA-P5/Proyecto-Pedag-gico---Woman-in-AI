@@ -3,10 +3,11 @@ import os
 import json
 import httpx
 
-OLLAMA_URL   = "http://localhost:11434/api/chat"
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+JUEZ_URL   = "https://openrouter.ai/api/v1/chat/completions"
+JUEZ_KEY   = os.getenv("OPEN_ROUTER_KEY")
+JUEZ_MODEL = "x-ai/grok-4.20-multi-agent-beta"  # o "google/gemini-2.5-flash"
 
-SYSTEM_PROMPT_JUEZ = """Eres un juez experto en análisis de sesgos de género \
+SYSTEM_PROMPT_JUEZ = """Eres un juez experto en análisis de sesgos de género 
 en canciones en español.
 
 Recibirás:
@@ -20,7 +21,7 @@ Tu trabajo es:
 
 ESCALA: 0=no presente, 1=leve, 2=claro, 3=extremo
 
-Devuelve ÚNICAMENTE este JSON:
+Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni markdown:
 {
   "dimension": "nombre de la dimensión",
   "evaluacion_groq": {
@@ -29,7 +30,7 @@ Devuelve ÚNICAMENTE este JSON:
     "puntuacion_sugerida": null,
     "razonamiento": "explicación breve"
   },
-  "evaluacion_github": {
+  "evaluacion_openrouter": {
     "fragmentos_validos": true,
     "puntuacion_justificada": true,
     "puntuacion_sugerida": null,
@@ -48,7 +49,7 @@ class JudgeAgent:
         self,
         letra: str,
         resultado_groq: dict,
-        resultado_github: dict,
+        resultado_openrouter: dict,
     ) -> dict:
         user_message = f"""LETRA ORIGINAL:
 \"\"\"{letra}\"\"\"
@@ -58,27 +59,32 @@ DIMENSIÓN: {resultado_groq.get('dimension')}
 EVALUACIÓN DE GROQ:
 {json.dumps(resultado_groq, ensure_ascii=False, indent=2)}
 
-EVALUACIÓN DE GITHUB MODELS:
-{json.dumps(resultado_github, ensure_ascii=False, indent=2)}
+EVALUACIÓN DE OPENROUTER:
+{json.dumps(resultado_openrouter, ensure_ascii=False, indent=2)}
 
 Emite tu veredicto."""
 
-        payload = {
-            "model":   OLLAMA_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
-                {"role": "user",   "content": user_message},
-            ],
-            "stream":  False,
-            "options": {"temperature": 0},
-        }
-
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(OLLAMA_URL, json=payload)
+                response = await client.post(
+                    JUEZ_URL,
+                    headers={
+                        "Authorization": f"Bearer {JUEZ_KEY}",
+                        "Content-Type":  "application/json",
+                    },
+                    json={
+                        "model":       JUEZ_MODEL,
+                        "temperature": 0,
+                        "max_tokens":  1024,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
+                            {"role": "user",   "content": user_message},
+                        ],
+                    }
+                )
                 response.raise_for_status()
 
-            raw = response.json()["message"]["content"].strip()
+            raw = response.json()["choices"][0]["message"]["content"].strip()
 
             try:
                 return json.loads(raw)
@@ -87,14 +93,14 @@ Emite tu veredicto."""
                 return json.loads(raw_clean)
 
         except Exception as e:
-            # Ollama no disponible → usar media como fallback
-            p_groq   = resultado_groq.get("puntuacion", 0)
-            p_github = resultado_github.get("puntuacion", 0)
+            # Fallback: media de los dos modelos
+            p_groq        = resultado_groq.get("puntuacion", 0)
+            p_openrouter  = resultado_openrouter.get("puntuacion", 0)
             return {
-                "dimension":     resultado_groq.get("dimension"),
-                "evaluacion_groq":   {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": "Ollama no disponible"},
-                "evaluacion_github": {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": "Ollama no disponible"},
-                "puntuacion_final":  round((p_groq + p_github) / 2),
-                "hay_discrepancia":  abs(p_groq - p_github) >= 2,
-                "error":             str(e),
+                "dimension":          resultado_groq.get("dimension"),
+                "evaluacion_groq":        {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": f"Juez no disponible: {str(e)}"},
+                "evaluacion_openrouter":  {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": f"Juez no disponible: {str(e)}"},
+                "puntuacion_final":   round((p_groq + p_openrouter) / 2),
+                "hay_discrepancia":   abs(p_groq - p_openrouter) >= 2,
+                "error":              str(e),
             }

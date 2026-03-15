@@ -31,6 +31,13 @@ class BaseAgent(ABC):
         config = PROVEEDORES.get(proveedor)
         if not config:
             raise ValueError(f"Proveedor desconocido: {proveedor}")
+        required_keys = ("url", "key", "model")
+        missing = [k for k in required_keys if not config.get(k)]
+        if missing:
+            raise ValueError(
+                f"Configuración incompleta para el proveedor '{proveedor}': "
+                f"faltan {', '.join(missing)}. Revisa las variables de entorno correspondientes."
+            )
 
         user_message = f"""Analiza la siguiente letra de canción en español \
 y devuelve ÚNICAMENTE un JSON válido, sin texto adicional ni bloques markdown.

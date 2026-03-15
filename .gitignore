@@ -253,3 +253,6 @@ data/**
 
 backend/.langgraph_api/
 *.pckl
+
+data/processed/
+data/raw/

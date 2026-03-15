@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from app.src.analysis.graph import analizar_cancion
 from app.src.config.supabase_client import supabase
@@ -161,8 +162,9 @@ async def analizar_por_id(song_id: int):
         letra=letra_row.data["lyrics_text"],
     )
 
-    # 4. Guardar
-    guardar_en_supabase(
+    # 4. Guardar (ejecutar escritura síncrona en un threadpool para no bloquear el event loop)
+    await run_in_threadpool(
+        guardar_en_supabase,
         song_id=song_id,
         lyrics_id=letra_row.data["id"],
         resultado=resultado,

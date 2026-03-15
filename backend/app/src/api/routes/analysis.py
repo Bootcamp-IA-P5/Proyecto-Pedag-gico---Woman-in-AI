@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.src.analysis.graph import analizar_cancion
 from app.src.config.supabase_client import supabase
+import os
 
 router = APIRouter(prefix="/analysis", tags=["Análisis de sesgos"])
 
@@ -66,7 +67,7 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
     eval_openrouter = supabase.table("llm_evaluations").insert({
         "song_id":               song_id,
         "lyrics_id":             lyrics_id,
-        "model_name":            "openrouter/gemini-2.5-flash",
+        "model_name":            os.getenv("OPEN_ROUTER_MODEL", "openrouter/gemini-2.5-flash"),
         "prompt_version":        resultado.get("prompt_version", "v1.0"),
         "temperature":           0.1,
         **scores_para_modelo("openrouter"),

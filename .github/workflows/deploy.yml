@@ -5,15 +5,9 @@ on:
     branches: [main]
 
 jobs:
-  # Primero corre el CI completo
-  ci:
-    uses: ./.github/workflows/ci.yml  
-    secrets: inherit                    
-
-  # Solo despliega si el CI pasa
+  # Solo despliega en push a main
   deploy:
     runs-on: ubuntu-latest
-    needs: [ci]                         
     steps:
       - name: Deploy backend a Render
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"

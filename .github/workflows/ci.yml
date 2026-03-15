@@ -17,7 +17,7 @@ jobs:
 
       - name: Instalar dependencias
         working-directory: ./backend
-        run: uv sync --locked          
+        run: uv sync
         env:
           UV_SYSTEM_PYTHON: "1"
 

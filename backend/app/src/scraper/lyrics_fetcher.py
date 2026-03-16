@@ -44,6 +44,13 @@ def detectar_idioma(texto: str) -> str:
         return "es"
 
 
+IDIOMAS_ESPANOL_VALIDOS = {"es", "españa", "latam"}
+
+
+def es_espanol_estricto(language_detected: str) -> bool:
+    return language_detected in IDIOMAS_ESPANOL_VALIDOS
+
+
 def buscar_letra(title: str, artist: str) -> dict | None:
     """
     Busca y normaliza la letra de una canción en Genius.
@@ -79,12 +86,16 @@ def buscar_letra(title: str, artist: str) -> dict | None:
         if len(letra_limpia) < 50:
             return None
 
+        language_detected = detectar_idioma(letra_limpia)
+        if not es_espanol_estricto(language_detected):
+            return None
+
         return {
             "lyrics_text": letra_limpia,
             "lyrics_hash": generar_hash(letra_limpia),
             "word_count": len(letra_limpia.split()),
             "verse_count": resultado["num_versos"],
-            "language_detected": detectar_idioma(letra_limpia),
+            "language_detected": language_detected,
             "source": "genius",
             "url_source": cancion.url,
             "extra_data": {

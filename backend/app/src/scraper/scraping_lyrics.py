@@ -32,6 +32,8 @@ from app.src.processor.upload_to_supabase import (
 
 BATCH_SIZE            = 100    # canciones por ejecución
 PAUSA_ENTRE_CANCIONES = 2.0   # segundos — evita que Genius bloquee
+ANIOS_PERMITIDOS = {2023, 2024, 2025, 2026}
+IDIOMAS_ESPANOL_VALIDOS = {"es", "españa", "latam"}
 
 
 # ─── Pipeline ─────────────────────────────────────────────────────────────────
@@ -55,8 +57,17 @@ def ejecutar_scraper_lyrics():
         song_id = cancion["id"]
         title   = cancion["title"]
         artist  = cancion["artist"]
+        year    = cancion.get("year")
 
         print(f"\n🎵 [{song_id}] {artist} — {title}")
+
+        # Regla obligatoria: solo canciones de 2023-2026
+        if year not in ANIOS_PERMITIDOS:
+            print(f"  ❌ Año fuera de rango ({year}) — permitido: 2023-2026")
+            marcar_error(song_id, f"Año fuera de rango: {year}. Permitidos: 2023-2026")
+            errores += 1
+            time.sleep(PAUSA_ENTRE_CANCIONES)
+            continue
 
         # Evitar reprocesar si ya tiene letra
         if letra_ya_existe(song_id):
@@ -69,6 +80,15 @@ def ejecutar_scraper_lyrics():
         if not letra:
             print("  ❌ No encontrada en Genius")
             marcar_error(song_id, "No encontrada en Genius")
+            errores += 1
+            time.sleep(PAUSA_ENTRE_CANCIONES)
+            continue
+
+        # Regla obligatoria: letra solo en español
+        if letra.get("language_detected") not in IDIOMAS_ESPANOL_VALIDOS:
+            detectado = letra.get("language_detected")
+            print(f"  ❌ Idioma no permitido: {detectado}")
+            marcar_error(song_id, f"Idioma no permitido ({detectado}). Solo se acepta español")
             errores += 1
             time.sleep(PAUSA_ENTRE_CANCIONES)
             continue

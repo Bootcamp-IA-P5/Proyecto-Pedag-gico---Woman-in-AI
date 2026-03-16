@@ -126,7 +126,7 @@ def guardar_posicion_ranking(ranking_id: int, song_id: int, posicion: int):
 # ─── Funciones para letras ────────────────────────────────────────────
 def obtener_canciones_pendientes(limite: int = 50) -> list[dict]:
     resultado = supabase.table("songs") \
-        .select("id, title, artist") \
+        .select("id, title, artist, year, artist_gender") \
         .eq("lyrics_status", "pending") \
         .limit(limite) \
         .execute()

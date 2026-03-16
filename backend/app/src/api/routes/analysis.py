@@ -13,57 +13,30 @@ router = APIRouter(prefix="/analysis", tags=["Análisis de sesgos"])
 def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
     dimensiones = {d["dimension"]: d for d in resultado.get("dimensiones", [])}
 
-    def get_score(nombre_dimension: str, modelo: str) -> int:
+    def get_score(nombre_dimension: str) -> int:
+        dimensiones = {d["dimension"]: d for d in resultado.get("dimensiones", [])}
         dim = dimensiones.get(nombre_dimension, {})
-        if modelo == "groq":
-            return dim.get("puntuacion_groq", 0)
         return dim.get("puntuacion_openrouter", 0)
 
-    def get_fragmentos(nombre_dimension: str, modelo: str):
+    def get_fragmentos(nombre_dimension: str):
+        dimensiones = {d["dimension"]: d for d in resultado.get("dimensiones", [])}
         dim = dimensiones.get(nombre_dimension, {})
-        key = "fragmentos_groq" if modelo == "groq" else "fragmentos_openrouter"
-        fragmentos = dim.get(key, [])
+        fragmentos = dim.get("fragmentos_openrouter", [])
         return " | ".join(fragmentos) if fragmentos else None
 
-    def scores_para_modelo(modelo: str) -> dict:
-        s = {
-            "score_objectification": get_score("Objetificación Sexual",          modelo),
-            "score_roles":           get_score("Sumisión / Roles de Género",     modelo),
-            "score_possession":      get_score("Celos / Control",                modelo),
-            "score_degrading":       get_score("Insultos / Lenguaje Degradante", modelo),
-        }
-        s["total_score"] = sum(s.values())
-        return s
-
-    nivel_global      = resultado.get("nivel_global", "")
-    puntuacion_global = resultado.get("puntuacion_global", 0)
-    explanation       = (
-        f"puntuacion_global={puntuacion_global} | "
-        f"nivel={nivel_global} | "
-        f"discrepantes={resultado.get('dimensiones_discrepantes', [])}"
-    )
-    gender_representation = ", ".join([d["dimension"] for d in resultado.get("dimensiones", [])])
-    symbolic_roles        = ", ".join(resultado.get("sin_sesgo", []))
-
-    # ── Guardar evaluación de Groq ────────────────────────────────────────────
-    eval_groq = supabase.table("llm_evaluations").insert({
-        "song_id":               song_id,
-        "lyrics_id":             lyrics_id,
-        "model_name":            "groq/llama-3.3-70b-versatile",
-        "prompt_version":        resultado.get("prompt_version", "v1.0"),
-        "temperature":           0.1,
-        **scores_para_modelo("groq"),
-        "evidence_objectification": get_fragmentos("Objetificación Sexual",          "groq"),
-        "evidence_roles":           get_fragmentos("Sumisión / Roles de Género",     "groq"),
-        "evidence_possession":      get_fragmentos("Celos / Control",                "groq"),
-        "evidence_degrading":       get_fragmentos("Insultos / Lenguaje Degradante", "groq"),
-        "dominant_narrative":       nivel_global,
-        "gender_representation":    gender_representation,
-        "symbolic_roles":           symbolic_roles,
-        "explanation":              explanation,
-        "llm_raw_response":         resultado,
-    }).execute()
-
+    def scores() -> dict:
+        return {
+        "score_objectification": get_score("Objetificación Sexual"),
+        "score_roles":           get_score("Sumisión / Roles de Género"),
+        "score_possession":      get_score("Celos / Control"),
+        "score_degrading":       get_score("Insultos / Lenguaje Degradante"),
+        "total_score":           sum([
+            get_score("Objetificación Sexual"),
+            get_score("Sumisión / Roles de Género"),
+            get_score("Celos / Control"),
+            get_score("Insultos / Lenguaje Degradante"),
+        ]),
+    }
     # ── Guardar evaluación de OpenRouter ─────────────────────────────────────
     eval_openrouter = supabase.table("llm_evaluations").insert({
         "song_id":               song_id,
@@ -71,7 +44,7 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
         "model_name":            os.getenv("OPEN_ROUTER_MODEL", "openrouter/gemini-2.5-flash"),
         "prompt_version":        resultado.get("prompt_version", "v1.0"),
         "temperature":           0.1,
-        **scores_para_modelo("openrouter"),
+        **scores(),
         "evidence_objectification": get_fragmentos("Objetificación Sexual",          "openrouter"),
         "evidence_roles":           get_fragmentos("Sumisión / Roles de Género",     "openrouter"),
         "evidence_possession":      get_fragmentos("Celos / Control",                "openrouter"),
@@ -83,16 +56,14 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
         "llm_raw_response":         resultado,
     }).execute()
 
-    id_groq       = eval_groq.data[0]["id"]
     id_openrouter = eval_openrouter.data[0]["id"]
 
     # ── Guardar comparación entre modelos ─────────────────────────────────────
     def diff(dim_nombre: str) -> int:
-        return abs(get_score(dim_nombre, "groq") - get_score(dim_nombre, "openrouter"))
+        return abs(get_score(dim_nombre, "openrouter"))
 
     supabase.table("model_comparison").insert({
         "song_id":                    song_id,
-        "evaluation_model_a_id":      id_groq,
         "evaluation_model_b_id":      id_openrouter,
         "diff_score_objectification": diff("Objetificación Sexual"),
         "diff_score_roles":           diff("Sumisión / Roles de Género"),

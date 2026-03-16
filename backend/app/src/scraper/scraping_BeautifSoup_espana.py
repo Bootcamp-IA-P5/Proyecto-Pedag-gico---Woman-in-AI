@@ -33,6 +33,7 @@ musicbrainzngs.set_useragent("ScraperLetras", "1.0", str(MUSICBRAINZ_EMAIL or "b
 # ──────────────────────────────────────────────
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+ANIOS_PERMITIDOS = {2023, 2024, 2025, 2026}
 # ──────────────────────────────────────────────
 # VALIDACIONES
 # ──────────────────────────────────────────────
@@ -58,11 +59,13 @@ def obtener_anio_cancion(artist: str, title: str) -> int | None:
 
 
 def validar_anio(artist: str, title: str) -> tuple[bool, str]:
-    """Informativo: siempre devuelve True, pero informa del año encontrado."""
+    """Solo permite canciones de 2023, 2024, 2025 o 2026."""
     anio = obtener_anio_cancion(artist, title)
     if anio is None:
-        return True, "❓ Año no encontrado en MusicBrainz."
-    return True, f"📅 Año: {anio}"
+        return False, "❌ Año no encontrado en MusicBrainz."
+    if anio not in ANIOS_PERMITIDOS:
+        return False, f"❌ Año fuera de rango: {anio}. Permitidos: 2023-2026"
+    return True, f"📅 Año válido: {anio}"
 
 
 def validar_idioma(texto: str, artist: str, title: str) -> tuple[bool, str]:

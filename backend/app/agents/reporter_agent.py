@@ -1,5 +1,4 @@
 # backend/app/agents/reporter_agent.py
-import asyncio
 from .base_agent            import BaseAgent
 from .jelous_agent          import CelosAgent
 from .strong_language_agent import InsultosAgent
@@ -11,6 +10,7 @@ from .judge_agent           import JudgeAgent
 class ReporterAgent:
 
     def __init__(self):
+        # Todos los agentes usan OpenRouter
         self.agentes: list[BaseAgent] = [
             CelosAgent(),
             InsultosAgent(),
@@ -20,51 +20,40 @@ class ReporterAgent:
         self.juez = JudgeAgent()
 
     async def analizar(self, letra: str) -> dict:
-        # PASO 1: 4 agentes × 2 modelos = 8 llamadas en paralelo
-        tareas_groq   = [a.analizar(letra, proveedor="groq")   for a in self.agentes]
-        tareas_openrouter = [a.analizar(letra, proveedor="openrouter") for a in self.agentes]
-
-        resultados_groq, resultados_openrouter = await asyncio.gather(
-            asyncio.gather(*tareas_groq,   return_exceptions=True),
-            asyncio.gather(*tareas_openrouter, return_exceptions=True),
-        )
-
-        # PASO 2: juez revisa cada par
-        dimensiones_finales = []
+        resultados = []
         errores = []
 
-        for agente, res_groq, res_openrouter in zip(
-            self.agentes, resultados_groq, resultados_openrouter
-        ):
-            if isinstance(res_groq, Exception):
-                errores.append({"dimension": agente.dimension, "error": f"groq: {str(res_groq)}"})
-                continue
-            if isinstance(res_openrouter, Exception):
-                errores.append({"dimension": agente.dimension, "error": f"openrouter: {str(res_openrouter)}"})
-                continue
-
+        # ── Ejecutar cada agente secuencialmente ────────────────
+        for agente in self.agentes:
             try:
-                veredicto = await self.juez.juzgar(letra, res_groq, res_openrouter)
+                res = await agente.analizar(letra, proveedor="openrouter")
+                resultados.append(res)
+            except Exception as e:
+                errores.append({"dimension": agente.dimension, "error": f"openrouter: {str(e)}"})
+                resultados.append({"puntuacion": 0, "fragmentos": []})
+
+        # ── Paso 2: juez revisa cada resultado ──────────────────
+        dimensiones_finales = []
+        for agente, res in zip(self.agentes, resultados):
+            try:
+                veredicto = await self.juez.juzgar(letra, res, res)
             except Exception as e:
                 errores.append({"dimension": agente.dimension, "error": f"juez: {str(e)}"})
                 veredicto = {
-                    "puntuacion_final":  round((res_groq["puntuacion"] + res_openrouter["puntuacion"]) / 2),
-                    "hay_discrepancia":  abs(res_groq["puntuacion"] - res_openrouter["puntuacion"]) >= 2,
+                    "puntuacion_final": res.get("puntuacion", 0),
+                    "hay_discrepancia": False,
                 }
 
             dimensiones_finales.append({
-                "dimension":         agente.dimension,
-                "puntuacion_groq":   res_groq["puntuacion"],
-                "puntuacion_openrouter": res_openrouter["puntuacion"],
-                "fragmentos_groq":   res_groq["fragmentos"],
-                "fragmentos_openrouter": res_openrouter["fragmentos"],
-                "puntuacion_final":  veredicto.get("puntuacion_final", 0),
-                "hay_discrepancia":  veredicto.get("hay_discrepancia", False),
-                "juez_groq":         veredicto.get("evaluacion_groq", {}),
-                "juez_openrouter":   veredicto.get("evaluacion_openrouter", {}),
+                "dimension":             agente.dimension,
+                "puntuacion_openrouter": res.get("puntuacion", 0),
+                "fragmentos_openrouter": res.get("fragmentos", []),
+                "puntuacion_final":      veredicto.get("puntuacion_final", 0),
+                "hay_discrepancia":      veredicto.get("hay_discrepancia", False),
+                "juez_openrouter":       veredicto.get("evaluacion_openrouter", {}),
             })
 
-        # PASO 3: consolidar
+        # ── Paso 3: consolidar ─────────────────────────────────
         puntuaciones = [d["puntuacion_final"] for d in dimensiones_finales]
         puntuacion_global = round(sum(puntuaciones) / len(puntuaciones), 1) if puntuaciones else 0.0
 
@@ -80,7 +69,7 @@ class ReporterAgent:
 
     @staticmethod
     def _nivel(puntuacion: float) -> str:
-        if puntuacion == 0:   return "Sin sesgo detectado"
-        elif puntuacion < 1.5: return "Leve"
-        elif puntuacion < 2.5: return "Moderado"
-        else:                  return "Grave"
+        if puntuacion == 0:      return "Sin sesgo detectado"
+        elif puntuacion < 1.5:   return "Leve"
+        elif puntuacion < 2.5:   return "Moderado"
+        else:                     return "Grave"

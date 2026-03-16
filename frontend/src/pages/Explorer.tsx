@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, BarChart3 } from "lucide-react";
+import { Search, Filter, BarChart3, Sparkles, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { genreDistribution, yearlyTrends, songs, genres, years, genders } from "@/data/mockData";
 import { cn } from "@/lib/utils";
+import { fetchSongs, normalizeArtistGender, normalizeGenre, parseStreams } from "@/lib/data";
+import { analyzeSongById, AnalysisResult } from "@/lib/analysisApi";
 
 const chartColors = [
   "hsl(330, 85%, 60%)", "hsl(265, 90%, 65%)", "hsl(155, 80%, 50%)",
@@ -44,18 +46,39 @@ function FilterSelect({ label, options, value, onChange }: { label: string; opti
 }
 
 export default function Explorer() {
+  const { data: songs = [], isLoading, error } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
+
+  const genres = useMemo(() => {
+    const unique = Array.from(new Set(songs.map((s) => normalizeGenre(s.genre)))).sort();
+    return ["Todos", ...unique];
+  }, [songs]);
+
+  const years = useMemo(() => {
+    const unique = Array.from(new Set(songs.map((s) => String(s.year ?? "Desconocido")))).sort();
+    return ["Todos", ...unique];
+  }, [songs]);
+
+  const genders = ["Todos", "Masculino", "Femenino", "Grupo", "No definido"];
+
   const [genre, setGenre] = useState("Todos");
   const [year, setYear] = useState("Todos");
   const [gender, setGender] = useState("Todos");
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [visibleCount, setVisibleCount] = useState(100);
 
   const filteredSongs = useMemo(() => {
     return songs.filter((s) => {
-      if (genre !== "Todos" && s.genre !== genre) return false;
-      if (year !== "Todos" && s.year.toString() !== year) return false;
+      const sGenre = s.genre || "Desconocido";
+      const sYear = String(s.year ?? "Desconocido");
+      const sGender = normalizeArtistGender(s.artist_gender);
+
+      if (genre !== "Todos" && normalizeGenre(sGenre) !== genre) return false;
+      if (year !== "Todos" && sYear !== year) return false;
       if (gender !== "Todos") {
-        const g = gender === "Masculino" ? "M" : "F";
-        if (s.gender !== g) return false;
+        if (sGender !== gender) return false;
       }
       return true;
     });
@@ -63,13 +86,64 @@ export default function Explorer() {
 
   const genreStats = useMemo(() => {
     const counts: Record<string, number> = {};
-    filteredSongs.forEach((s) => { counts[s.genre] = (counts[s.genre] || 0) + 1; });
+    const colorByIndex = [
+      "hsl(330, 85%, 60%)",
+      "hsl(265, 90%, 65%)",
+      "hsl(155, 80%, 50%)",
+      "hsl(220, 85%, 60%)",
+      "hsl(195, 95%, 55%)",
+    ];
+
+    filteredSongs.forEach((s) => {
+      const g = normalizeGenre(s.genre);
+      counts[g] = (counts[g] || 0) + 1;
+    });
+
     return Object.entries(counts).map(([name, value]) => ({
       name,
       value,
-      fill: genreDistribution.find((g) => g.name === name)?.fill || "hsl(220, 15%, 40%)",
+      fill: colorByIndex[Math.abs(name.length) % colorByIndex.length],
     }));
   }, [filteredSongs]);
+
+  const yearlyTrends = useMemo(() => {
+    const map = new Map<string, any>();
+    songs.forEach((s) => {
+      const yearLabel = String(s.year ?? "N/A");
+      if (!map.has(yearLabel)) {
+        map.set(yearLabel, { year: yearLabel, total: 0, Reggaeton: 0, Vallenato: 0, Pop: 0, Rap: 0 });
+      }
+      const row = map.get(yearLabel);
+      row.total += 1;
+      const genreName = normalizeGenre(s.genre).toLowerCase();
+      if (genreName.includes("regga")) row.Reggaeton += 1;
+      else if (genreName.includes("vallen")) row.Vallenato += 1;
+      else if (genreName.includes("pop")) row.Pop += 1;
+      else if (genreName.includes("rap")) row.Rap += 1;
+    });
+    return [...map.values()].sort((a, b) => Number(a.year) - Number(b.year));
+  }, [songs]);
+
+  const runAnalysisById = async (songId: number) => {
+    setAnalysisError(null);
+    setAnalyzingId(songId);
+    try {
+      const result = await analyzeSongById(songId);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      setAnalysisError(err?.message || "No se pudo analizar la canción seleccionada.");
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
+  const visibleSongs = useMemo(() => filteredSongs.slice(0, visibleCount), [filteredSongs, visibleCount]);
+
+  const canShowMore = filteredSongs.length > visibleCount;
+
+  useEffect(() => {
+    setVisibleCount(100);
+  }, [genre, year, gender]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -141,10 +215,10 @@ export default function Explorer() {
                     <XAxis dataKey="year" axisLine={false} tickLine={false} />
                     <YAxis axisLine={false} tickLine={false} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="reggaeton" stroke={chartColors[0]} strokeWidth={2} dot={false} name="Reggaetón" />
-                    <Line type="monotone" dataKey="vallenato" stroke={chartColors[2]} strokeWidth={2} dot={false} name="Vallenato" />
-                    <Line type="monotone" dataKey="pop" stroke={chartColors[1]} strokeWidth={2} dot={false} name="Pop" />
-                    <Line type="monotone" dataKey="rap" stroke={chartColors[3]} strokeWidth={2} dot={false} name="Rap" />
+                    <Line type="monotone" dataKey="Reggaeton" stroke={chartColors[0]} strokeWidth={2} dot={false} name="Reggaetón" />
+                    <Line type="monotone" dataKey="Vallenato" stroke={chartColors[2]} strokeWidth={2} dot={false} name="Vallenato" />
+                    <Line type="monotone" dataKey="Pop" stroke={chartColors[1]} strokeWidth={2} dot={false} name="Pop" />
+                    <Line type="monotone" dataKey="Rap" stroke={chartColors[3]} strokeWidth={2} dot={false} name="Rap" />
                   </LineChart>
                 )}
               </ResponsiveContainer>
@@ -154,17 +228,41 @@ export default function Explorer() {
 
         {/* Filtered Songs List */}
         <GlassCard delay={0.25}>
-          <h3 className="text-sm font-semibold text-foreground mb-4">Canciones Filtradas</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Canciones Filtradas</h3>
+            {analysisResult && (
+              <span className="text-xs text-muted-foreground">Último análisis: {analysisResult.nivel_global} ({analysisResult.puntuacion_global})</span>
+            )}
+          </div>
+
+          {isLoading && (
+            <div className="mb-3 rounded-md border border-border/40 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+              Cargando canciones desde Supabase...
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              No se pudieron cargar las canciones para el explorador.
+            </div>
+          )}
+
+          {analysisError && (
+            <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {analysisError}
+            </div>
+          )}
+
           <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin">
             {filteredSongs.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No se encontraron resultados</p>
             ) : (
-              filteredSongs.map((song, i) => (
+              visibleSongs.map((song, i) => (
                 <motion.div
                   key={song.id}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  transition={{ delay: Math.min(i * 0.01, 0.2) }}
                   className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/30 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
@@ -172,13 +270,35 @@ export default function Explorer() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
-                    <p className="text-xs text-muted-foreground">{song.artist} · {song.year}</p>
+                    <p className="text-xs text-muted-foreground">{song.artist} · {song.year ?? "N/A"}</p>
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground">{song.streams}</span>
+                  <span className="text-xs font-mono text-muted-foreground">{parseStreams(song.streams).toLocaleString("es-CO")}</span>
+                  <button
+                    onClick={() => runAnalysisById(song.id)}
+                    disabled={analyzingId === song.id}
+                    className="rounded-md border border-border/40 px-2 py-1 text-xs hover:border-primary/60 disabled:opacity-50"
+                  >
+                    {analyzingId === song.id ? (
+                      <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Analizando</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1"><Sparkles className="h-3 w-3" />Analizar</span>
+                    )}
+                  </button>
                 </motion.div>
               ))
             )}
           </div>
+
+          {canShowMore && (
+            <div className="mt-3 flex justify-center">
+              <button
+                onClick={() => setVisibleCount((current) => current + 100)}
+                className="rounded-md border border-border/40 px-3 py-1.5 text-xs hover:border-primary/60"
+              >
+                Ver más
+              </button>
+            </div>
+          )}
         </GlassCard>
       </div>
     </motion.div>

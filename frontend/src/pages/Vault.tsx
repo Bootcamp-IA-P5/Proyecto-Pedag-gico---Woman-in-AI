@@ -1,37 +1,69 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Database, Play, Search, ArrowUpDown } from "lucide-react";
+import { Database, Play, Search, ArrowUpDown, Sparkles, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GenreTag } from "@/components/ui/GenreTag";
-import { songs } from "@/data/mockData";
 import { cn } from "@/lib/utils";
+import { fetchSongs, formatDuration, parseStreams } from "@/lib/data";
+import { analyzeSongById, AnalysisResult } from "@/lib/analysisApi";
 
 type SortField = "title" | "artist" | "streams" | "year";
 
 export default function Vault() {
+  const { data: songs = [], isLoading, error } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
+
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("streams");
   const [sortAsc, setSortAsc] = useState(false);
   const [playing, setPlaying] = useState<number | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [visibleCount, setVisibleCount] = useState(100);
 
-  const filtered = songs
-    .filter((s) => {
-      const q = search.toLowerCase();
-      return s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || s.genre.toLowerCase().includes(q);
-    })
-    .sort((a, b) => {
-      let cmp = 0;
-      if (sortField === "title") cmp = a.title.localeCompare(b.title);
-      else if (sortField === "artist") cmp = a.artist.localeCompare(b.artist);
-      else if (sortField === "year") cmp = a.year - b.year;
-      else cmp = 0; // streams is string, keep original order
-      return sortAsc ? cmp : -cmp;
-    });
+  const filtered = useMemo(() => {
+    return songs
+      .filter((s) => {
+        const q = search.toLowerCase();
+        return s.title.toLowerCase().includes(q) ||
+          s.artist.toLowerCase().includes(q) ||
+          (s.genre || "").toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        let cmp = 0;
+        if (sortField === "title") cmp = a.title.localeCompare(b.title);
+        else if (sortField === "artist") cmp = a.artist.localeCompare(b.artist);
+        else if (sortField === "year") cmp = (a.year || 0) - (b.year || 0);
+        else cmp = parseStreams(a.streams) - parseStreams(b.streams);
+        return sortAsc ? cmp : -cmp;
+      });
+  }, [songs, search, sortField, sortAsc]);
+
+  const visibleRows = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const canShowMore = filtered.length > visibleCount;
+
+  useEffect(() => {
+    setVisibleCount(100);
+  }, [search, sortField, sortAsc]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortAsc(!sortAsc);
     else { setSortField(field); setSortAsc(false); }
+  };
+
+  const runAnalysisById = async (songId: number) => {
+    setAnalysisError(null);
+    setAnalyzingId(songId);
+    try {
+      const result = await analyzeSongById(songId);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      setAnalysisError(err?.message || "No se pudo analizar la canción seleccionada.");
+    } finally {
+      setAnalyzingId(null);
+    }
   };
 
   const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
@@ -62,51 +94,72 @@ export default function Vault() {
             placeholder="Buscar por título, artista o género..."
             className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground"
           />
-          <span className="text-xs font-mono text-muted-foreground">{filtered.length} canciones</span>
+          <span className="text-xs font-mono text-muted-foreground">{isLoading ? "cargando..." : `${filtered.length} canciones`}</span>
         </div>
       </GlassCard>
 
       {/* Data Grid */}
       <GlassCard delay={0.15} hover={false}>
+        {analysisError && (
+          <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {analysisError}
+          </div>
+        )}
+
+        {analysisResult && (
+          <div className="mb-3 rounded-md border border-border/50 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+            Último análisis: <span className="text-foreground">{analysisResult.titulo}</span> · {analysisResult.nivel_global} ({analysisResult.puntuacion_global})
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            No se pudo cargar la bóveda desde Supabase.
+          </div>
+        )}
+
         {/* Header */}
-        <div className="grid grid-cols-[40px_1fr_1fr_100px_80px_80px_60px] gap-3 px-3 py-2.5 border-b border-border/50 items-center">
+        <div className="grid grid-cols-[40px_1fr_1fr_100px_80px_80px_120px] gap-3 px-3 py-2.5 border-b border-border/50 items-center">
           <span className="text-xs text-muted-foreground">#</span>
           <SortHeader field="title" label="Título" />
           <SortHeader field="artist" label="Artista" />
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Género</span>
           <SortHeader field="year" label="Año" />
           <SortHeader field="streams" label="Streams" />
-          <span className="text-xs text-muted-foreground text-center">▶</span>
+          <span className="text-xs text-muted-foreground text-center">Acciones</span>
         </div>
 
         {/* Rows */}
         <div className="divide-y divide-border/30">
-          {filtered.map((song, i) => (
+          {isLoading && (
+            <div className="px-3 py-6 text-sm text-muted-foreground">Cargando catálogo...</div>
+          )}
+          {visibleRows.map((song, i) => (
             <motion.div
               key={song.id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: i * 0.03 }}
+              transition={{ delay: Math.min(i * 0.005, 0.2) }}
               className={cn(
-                "grid grid-cols-[40px_1fr_1fr_100px_80px_80px_60px] gap-3 px-3 py-3 items-center hover:bg-muted/20 transition-colors group",
+                "grid grid-cols-[40px_1fr_1fr_100px_80px_80px_120px] gap-3 px-3 py-3 items-center hover:bg-muted/20 transition-colors group",
                 playing === song.id && "bg-primary/5"
               )}
             >
               <span className="text-xs font-mono text-muted-foreground">{i + 1}</span>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
-                <p className="text-xs text-muted-foreground">{song.duration}</p>
+                <p className="text-xs text-muted-foreground">{formatDuration(song.duration_seg)}</p>
               </div>
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground flex-shrink-0">
-                  {song.artist[0]}
+                  {(song.artist || "?")[0]}
                 </div>
                 <span className="text-sm text-foreground truncate">{song.artist}</span>
               </div>
-              <GenreTag genre={song.genre} />
-              <span className="text-sm font-mono text-muted-foreground">{song.year}</span>
-              <span className="text-sm font-mono text-foreground">{song.streams}</span>
-              <div className="flex justify-center">
+              <GenreTag genre={song.genre || "Desconocido"} />
+              <span className="text-sm font-mono text-muted-foreground">{song.year ?? "N/A"}</span>
+              <span className="text-sm font-mono text-foreground">{parseStreams(song.streams).toLocaleString("es-CO")}</span>
+              <div className="flex justify-center gap-2">
                 <button
                   onClick={() => setPlaying(playing === song.id ? null : song.id)}
                   className={cn(
@@ -118,10 +171,36 @@ export default function Vault() {
                 >
                   <Play className="w-3.5 h-3.5" fill={playing === song.id ? "currentColor" : "none"} />
                 </button>
+                <button
+                  onClick={() => runAnalysisById(song.id)}
+                  disabled={analyzingId === song.id}
+                  className="rounded-md border border-border/40 px-2 py-1 text-xs hover:border-primary/60 disabled:opacity-50"
+                >
+                  {analyzingId === song.id ? (
+                    <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Analizando</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1"><Sparkles className="h-3 w-3" />Analizar</span>
+                  )}
+                </button>
               </div>
             </motion.div>
           ))}
+
+          {!isLoading && filtered.length === 0 && (
+            <div className="px-3 py-6 text-sm text-muted-foreground">No hay canciones para mostrar con el filtro actual.</div>
+          )}
         </div>
+
+        {canShowMore && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => setVisibleCount((current) => current + 100)}
+              className="rounded-md border border-border/40 px-3 py-1.5 text-xs hover:border-primary/60"
+            >
+              Ver más canciones
+            </button>
+          </div>
+        )}
       </GlassCard>
     </motion.div>
   );

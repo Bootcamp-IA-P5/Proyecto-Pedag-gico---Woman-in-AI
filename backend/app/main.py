@@ -1,4 +1,3 @@
-
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,13 +9,15 @@ load_dotenv()
 app = FastAPI(
     title="VERTICE API",
     description="Análisis de sesgos de género en canciones",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:8080",
+        "http://localhost:8081",
         "https://vertice-frontend.onrender.com",
     ],
     allow_methods=["*"],
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(analysis)
+
 
 @app.get("/")
 def health_check():

@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { title: "Dashboard", path: "/", icon: LayoutDashboard },
+  { title: "Analizar", path: "/", icon: Sparkles },
+  { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { title: "Explorador", path: "/explorer", icon: Search },
   { title: "Bóveda", path: "/vault", icon: Database },
   { title: "Perfil", path: "/profile", icon: User },

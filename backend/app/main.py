@@ -18,8 +18,11 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:8080",
         "http://localhost:8081",
+        "http://localhost:8082",
+        "http://localhost:4173",
         "https://vertice-frontend.onrender.com",
     ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )

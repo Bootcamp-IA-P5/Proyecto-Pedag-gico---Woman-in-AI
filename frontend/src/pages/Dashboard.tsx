@@ -167,7 +167,7 @@ export default function Dashboard() {
         />
         <StatCard
           icon={Users}
-          title="Género Más Riesgoso"
+          title="Género con Mayor Score"
           value={riskByGenre.genre}
           subtitle={`score promedio ${Math.round(riskByGenre.avg * 10) / 10}`}
           gradient="warm"
@@ -175,7 +175,7 @@ export default function Dashboard() {
         />
         <StatCard
           icon={Headphones}
-          title="Artista Más Riesgoso"
+          title="Artista con Mayor Score"
           value={riskByArtist.artist}
           subtitle={`score promedio ${Math.round(riskByArtist.avg * 10) / 10}`}
           gradient="primary"

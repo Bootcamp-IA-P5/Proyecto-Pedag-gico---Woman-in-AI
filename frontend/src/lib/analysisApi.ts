@@ -47,7 +47,7 @@ async function assertBackendAvailable() {
       throw new Error("Backend no disponible");
     }
   } catch {
-    throw new Error(`No hay conexión con el backend (${API_BASE}). Inicia el backend y vuelve a intentar.`);
+    throw new Error(`No hay conexión con el backend (${API_BASE}). Verifica despliegue activo y CORS para el origen actual.`);
   }
 }
 

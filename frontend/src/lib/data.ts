@@ -79,12 +79,19 @@ async function fetchAllRows<T>(table: string, select: string, orderBy: string, a
 }
 
 export async function fetchSongs(): Promise<SongRow[]> {
-  return fetchAllRows<SongRow>(
+  const rows = await fetchAllRows<SongRow>(
     "songs",
     "id,title,artist,genre,year,streams,duration_seg,artist_gender,created_at",
     "id",
     true,
   );
+
+  return rows.map((row) => ({
+    ...row,
+    // Defensive normalization to avoid runtime crashes when DB rows contain null/empty text values.
+    title: typeof row.title === "string" && row.title.trim().length ? row.title : "Sin título",
+    artist: typeof row.artist === "string" && row.artist.trim().length ? row.artist : "Artista desconocido",
+  }));
 }
 
 export async function fetchEvaluations(): Promise<EvaluationRow[]> {

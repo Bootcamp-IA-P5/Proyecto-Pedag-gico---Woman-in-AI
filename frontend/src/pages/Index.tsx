@@ -1,148 +1,201 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Sparkles,
-  FlaskConical,
-  ShieldAlert,
-  Activity,
-  Users,
-  BarChart3,
-} from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FeedbackBox } from "@/components/feedback/FeedbackBox";
+import { analyzeLyrics, type AnalysisResult } from "@/lib/analysisApi";
 
-const AGENTS = [
-  { name: "Celos / Control", description: "Detecta comportamiento posesivo, vigilancia y restricción de libertad.", color: "hsl(0, 70%, 55%)" },
-  { name: "Insultos / Lenguaje Degradante", description: "Identifica insultos directos, descalificaciones y trato vejatorio.", color: "hsl(30, 80%, 55%)" },
-  { name: "Sumisión / Roles de Género", description: "Analiza sumisión femenina, masculinidad tóxica y dinámicas de poder.", color: "hsl(50, 80%, 50%)" },
-  { name: "Objetificación Sexual", description: "Detecta cosificación directa e indirecta y eliminación de agencia.", color: "hsl(265, 85%, 60%)" },
-];
+const SCORE_STYLES: Record<string, string> = {
+  "0": "text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
+  "1": "text-yellow-300 border-yellow-500/30 bg-yellow-500/10",
+  "2": "text-orange-300 border-orange-500/30 bg-orange-500/10",
+  "3": "text-rose-300 border-rose-500/30 bg-rose-500/10",
+};
 
-const COMING_SOON_FEATURES = [
-  { icon: FlaskConical, label: "Análisis por letra", desc: "Pega cualquier letra y obtén la evaluación de sesgo por dimensión." },
-  { icon: ShieldAlert, label: "Análisis por canción", desc: "Analiza directamente canciones del catálogo usando su ID." },
-  { icon: Activity, label: "Comparativa de modelos", desc: "Groq vs OpenRouter: puntajes cruzados y detección de discrepancias." },
-  { icon: BarChart3, label: "Historial de análisis", desc: "Consulta evaluaciones pasadas y tendencias por artista o género." },
-  { icon: Users, label: "Revisión humana", desc: "Flagging automático de canciones que requieren revisión editorial." },
-];
+type FormState = {
+  titulo: string;
+  artista: string;
+  genero_musical: string;
+  letra: string;
+};
+
+const INITIAL_FORM: FormState = {
+  titulo: "",
+  artista: "",
+  genero_musical: "Reggaeton",
+  letra: "",
+};
 
 export default function Index() {
-  const [hovered, setHovered] = useState<number | null>(null);
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+
+  const canSubmit = useMemo(() => {
+    return form.titulo.trim().length > 0 &&
+      form.artista.trim().length > 0 &&
+      form.genero_musical.trim().length > 0 &&
+      form.letra.trim().length >= 30;
+  }, [form]);
+
+  const onChange = (field: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const runAnalyze = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResult(null);
+
+    if (!canSubmit) {
+      setError("Completa todos los campos. La letra debe tener al menos 30 caracteres.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await analyzeLyrics({
+        titulo: form.titulo.trim(),
+        artista: form.artista.trim(),
+        genero_musical: form.genero_musical.trim(),
+        letra: form.letra.trim(),
+      });
+      setResult(response);
+    } catch (err: any) {
+      setError(err?.message || "No fue posible analizar la canción en este momento.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const scoreClass = SCORE_STYLES[String(result?.puntuacion_global ?? "")] || "text-muted-foreground border-border/40 bg-background/30";
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="pb-10"
-    >
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Analizador de Sesgos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Motor de evaluación LLM para detección de sesgo de género en letras de canciones.
-          </p>
-        </div>
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-2 self-start rounded-lg border border-border/60 bg-card/40 px-4 py-2 text-sm hover:border-primary/60"
-        >
-          <BarChart3 className="h-4 w-4" />
-          Ver Dashboard
-        </Link>
-      </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <PageHeader
+        icon={Sparkles}
+        title="Analizador de Canciones"
+        subtitle="Ingresa título, artista, género y letra para obtener evaluación de sesgo"
+      />
 
-      {/* Status banner */}
-      <div className="mb-8 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
-        <FlaskConical className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
-        <div>
-          <p className="text-sm font-semibold text-amber-300">Motor de agentes en configuración</p>
-          <p className="mt-0.5 text-xs text-amber-300/70">
-            Los 9 agentes de análisis están siendo calibrados y conectados al pipeline. El analizador
-            estará disponible en cuanto finalice esa integración.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Agents preview */}
-        <section>
-          <div className="mb-4 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Agentes de análisis</h2>
-          </div>
-          <div className="space-y-3">
-            {AGENTS.map((agent, i) => (
-              <motion.div
-                key={agent.name}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.07 }}
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                className="flex items-start gap-3 rounded-xl border border-border/50 bg-card/30 px-4 py-3 transition-colors hover:border-border/80 hover:bg-card/50"
-              >
-                <span
-                  className="mt-0.5 h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: agent.color, boxShadow: hovered === i ? `0 0 8px ${agent.color}` : "none" }}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <GlassCard delay={0.1} hover={false}>
+          <form onSubmit={runAnalyze} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Título</label>
+                <input
+                  value={form.titulo}
+                  onChange={(e) => onChange("titulo", e.target.value)}
+                  placeholder="Ej: Mi canción"
+                  className="w-full rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm outline-none focus:border-primary/60"
                 />
-                <div>
-                  <p className="text-sm font-medium text-foreground">{agent.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{agent.description}</p>
-                </div>
-                <span className="ml-auto self-start rounded-full border border-border/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  Escala 0–3
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+              </div>
 
-        {/* Features coming soon */}
-        <section>
-          <div className="mb-4 flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Funcionalidades próximas</h2>
-          </div>
-          <div className="space-y-3">
-            {COMING_SOON_FEATURES.map((feat, i) => (
-              <motion.div
-                key={feat.label}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.07 }}
-                className="flex items-start gap-3 rounded-xl border border-border/40 bg-card/20 px-4 py-3 opacity-70"
-              >
-                <feat.icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary/70" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{feat.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{feat.desc}</p>
-                </div>
-                <span className="ml-auto self-start rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary/80">
-                  Próximamente
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Score scale reference */}
-      <div className="mt-8 rounded-xl border border-border/40 bg-card/20 px-5 py-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Escala de puntuación</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { level: "0 — Sin sesgo", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10", desc: "No se detectan indicadores" },
-            { level: "1 — Leve", color: "text-yellow-400 border-yellow-500/30 bg-yellow-500/10", desc: "Insinuación o lenguaje ambiguo" },
-            { level: "2 — Moderado", color: "text-orange-400 border-orange-500/30 bg-orange-500/10", desc: "Patrón claro pero no explícito" },
-            { level: "3 — Grave", color: "text-red-400 border-red-500/30 bg-red-500/10", desc: "Explícito, reiterativo o normalizador" },
-          ].map((s) => (
-            <div key={s.level} className={`rounded-lg border px-3 py-2 ${s.color}`}>
-              <p className="text-xs font-semibold">{s.level}</p>
-              <p className="mt-0.5 text-[11px] opacity-80">{s.desc}</p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Artista</label>
+                <input
+                  value={form.artista}
+                  onChange={(e) => onChange("artista", e.target.value)}
+                  placeholder="Ej: Artista X"
+                  className="w-full rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm outline-none focus:border-primary/60"
+                />
+              </div>
             </div>
-          ))}
-        </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Género musical</label>
+              <select
+                value={form.genero_musical}
+                onChange={(e) => onChange("genero_musical", e.target.value)}
+                className="w-full rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm outline-none focus:border-primary/60"
+              >
+                <option>Reggaeton</option>
+                <option>Pop</option>
+                <option>Rap</option>
+                <option>Vallenato</option>
+                <option>Otro</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Letra</label>
+              <textarea
+                value={form.letra}
+                onChange={(e) => onChange("letra", e.target.value)}
+                placeholder="Pega aquí la letra completa de la canción..."
+                rows={11}
+                className="w-full rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm outline-none focus:border-primary/60"
+              />
+              <p className="text-xs text-muted-foreground">{form.letra.trim().length} caracteres</p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!canSubmit || isLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-border/50 px-4 py-2 text-sm font-medium hover:border-primary/60 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {isLoading ? "Analizando..." : "Analizar canción"}
+            </button>
+          </form>
+        </GlassCard>
+
+        <GlassCard delay={0.15} hover={false}>
+          {!result && !error && (
+            <div className="flex min-h-[300px] items-center justify-center text-sm text-muted-foreground">
+              Completa el formulario para ver el resultado del análisis.
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 inline-flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/50 bg-background/40 p-3">
+                <p className="text-sm text-muted-foreground">Resultado global</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className={`rounded-md border px-2 py-1 text-sm font-semibold ${scoreClass}`}>
+                    Score {result.puntuacion_global}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{result.nivel_global}</span>
+                  {result.requiere_revision_humana ? (
+                    <span className="text-xs text-orange-300">Requiere revisión humana</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-300"><CheckCircle2 className="h-3 w-3" />Sin revisión humana</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                {result.dimensiones.map((d) => {
+                  const g = d.puntuacion_groq ?? 0;
+                  const o = d.puntuacion_openrouter ?? 0;
+                  const avg = Math.round(((g + o) / 2) * 10) / 10;
+                  return (
+                    <div key={d.dimension} className="rounded-md border border-border/40 bg-background/30 p-3">
+                      <p className="text-sm font-medium text-foreground">{d.dimension}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Groq: {g} · OpenRouter: {o} · Promedio: {avg}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <FeedbackBox
+                storageKey={`feedback:analysis:${result.song_id || `${form.titulo}:${form.artista}`}`}
+                title="¿Qué opinas del resultado?"
+                placeholder="Escribe observaciones sobre precisión, sesgos o aspectos a mejorar."
+              />
+            </div>
+          )}
+        </GlassCard>
       </div>
     </motion.div>
   );

@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, BarChart3, Sparkles, Loader2 } from "lucide-react";
+import { Search, Filter, BarChart3, Sparkles, Loader2, MessageSquare } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { FeedbackBox } from "@/components/feedback/FeedbackBox";
 import { cn } from "@/lib/utils";
 import { fetchSongs, normalizeArtistGender, normalizeGenre, parseStreams } from "@/lib/data";
 import { analyzeSongById, AnalysisResult } from "@/lib/analysisApi";
@@ -65,6 +66,7 @@ export default function Explorer() {
   const [gender, setGender] = useState("Todos");
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
   const [analyzingId, setAnalyzingId] = useState<number | null>(null);
+  const [feedbackSongId, setFeedbackSongId] = useState<number | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [visibleCount, setVisibleCount] = useState(100);
@@ -253,38 +255,67 @@ export default function Explorer() {
             </div>
           )}
 
+          {analysisResult && (
+            <div className="mb-3">
+              <FeedbackBox
+                storageKey={`feedback:analysis:${analysisResult.song_id}`}
+                title={`Feedback del resultado (${analysisResult.titulo})`}
+                placeholder="¿Qué tan útil fue este resultado? ¿Qué cambiarías?"
+              />
+            </div>
+          )}
+
           <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin">
             {filteredSongs.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No se encontraron resultados</p>
             ) : (
               visibleSongs.map((song, i) => (
-                <motion.div
-                  key={song.id}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: Math.min(i * 0.01, 0.2) }}
-                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/30 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
-                    {song.title[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
-                    <p className="text-xs text-muted-foreground">{song.artist} · {song.year ?? "N/A"}</p>
-                  </div>
-                  <span className="text-xs font-mono text-muted-foreground">{parseStreams(song.streams).toLocaleString("es-CO")}</span>
-                  <button
-                    onClick={() => runAnalysisById(song.id)}
-                    disabled={analyzingId === song.id}
-                    className="rounded-md border border-border/40 px-2 py-1 text-xs hover:border-primary/60 disabled:opacity-50"
+                <div key={song.id} className="space-y-2 rounded-lg">
+                  <motion.div
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: Math.min(i * 0.01, 0.2) }}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/30 transition-colors"
                   >
-                    {analyzingId === song.id ? (
-                      <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Analizando</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1"><Sparkles className="h-3 w-3" />Analizar</span>
-                    )}
-                  </button>
-                </motion.div>
+                    <div className="w-8 h-8 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
+                      {(song.title || "?").charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
+                      <p className="text-xs text-muted-foreground">{song.artist} · {song.year ?? "N/A"}</p>
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">{parseStreams(song.streams).toLocaleString("es-CO")}</span>
+
+                    <button
+                      onClick={() => setFeedbackSongId((prev) => (prev === song.id ? null : song.id))}
+                      className="rounded-md border border-border/40 px-2 py-1 text-xs hover:border-primary/60"
+                    >
+                      <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />Comentar</span>
+                    </button>
+
+                    <button
+                      onClick={() => runAnalysisById(song.id)}
+                      disabled={analyzingId === song.id}
+                      className="rounded-md border border-border/40 px-2 py-1 text-xs hover:border-primary/60 disabled:opacity-50"
+                    >
+                      {analyzingId === song.id ? (
+                        <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Analizando</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1"><Sparkles className="h-3 w-3" />Analizar</span>
+                      )}
+                    </button>
+                  </motion.div>
+
+                  {feedbackSongId === song.id && (
+                    <div className="px-2">
+                      <FeedbackBox
+                        storageKey={`feedback:song:${song.id}`}
+                        title={`Feedback de canción: ${song.title}`}
+                        placeholder="Escribe observaciones sobre esta canción o su contexto."
+                      />
+                    </div>
+                  )}
+                </div>
               ))
             )}
           </div>

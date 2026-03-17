@@ -65,7 +65,7 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}             VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env
       
       - name: Build Docker Image (Dry Run)
         working-directory: ./frontend

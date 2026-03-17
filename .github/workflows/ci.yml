@@ -38,6 +38,10 @@ jobs:
           LANGCHAIN_TRACING_V2: "false"   # no trazas en CI
           ENVIRONMENT:         test
 
+      - name: Build Docker Image (Dry Run)
+        working-directory: ./backend
+        run: docker build -t test-backend .
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -61,4 +65,8 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}             VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env
+      
+      - name: Build Docker Image (Dry Run)
+        working-directory: ./frontend
+        run: docker build -t test-frontend .

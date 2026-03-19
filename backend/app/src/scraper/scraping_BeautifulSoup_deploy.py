@@ -1,8 +1,6 @@
 """
-Archivo: scraping_BeautifulSoup_deploy.py
-
 Este es el fichero que EJECUTAS para obtener las letras desde letras.com.
-Procesa canciones descubiertas desde los charts hasta alcanzar el objetivo (600).
+Procesa canciones descubiertas desde los charts.
 
 Cómo ejecutarlo:
   python scraping_BeautifulSoup_deploy.py
@@ -20,7 +18,7 @@ Qué hace paso a paso:
 import time
 import os
 import sys
-from datetime import datetime
+
 
 # Añadir la raíz 'Vertice/backend' al path de Python
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))

@@ -94,7 +94,7 @@ def test_mostrar_tracks(token: str):
         print(f"  year         : {release_date[:4] if release_date else 'N/A'}")
         print(f"  duration_seg : {track.get('duration_ms', 0) // 1000}s")
         print(f"  streams      : {track.get('popularity')}")
-        print(f"  source       : spotify")
+        print("  source       : spotify")
         print(f"  url_source   : {track.get('external_urls', {}).get('spotify', '')}")
 
 # ─── Ejecutar tests ───────────────────────────────────────────

@@ -12,8 +12,9 @@ def convertir_duracion(duration_iso):
 
     try:
         return int(isodate.parse_duration(duration_iso).total_seconds())
-    except:
+    except(TypeError, ValueError, Exception): 
         return None
+       
 
 
 def separar_artista_titulo(titulo):

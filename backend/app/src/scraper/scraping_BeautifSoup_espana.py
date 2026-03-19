@@ -8,13 +8,12 @@ Dependencias:
 
 import re
 import time
-from datetime import datetime
+
 
 import musicbrainzngs
 import requests
 from bs4 import BeautifulSoup
 from langdetect import detect, LangDetectException
-import os
 from supabase import create_client
 from app.src.config.BeautifulSoup_config import (
     SUPABASE_URL,
@@ -140,8 +139,8 @@ def scrape_lyrics(url: str, session=None) -> str | None:
                 tag.decompose()
 
             texto = container.get_text(separator="\n").strip()
-            lineas = [l.strip() for l in texto.splitlines()]
-            texto_limpio = "\n".join(l for l in lineas if l)
+            lineas = [linea.strip() for linea in texto.splitlines()]
+            texto_limpio = "\n".join(linea for linea in lineas if linea)
 
             return texto_limpio if len(texto_limpio) > 50 else None
 

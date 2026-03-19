@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   backend:
@@ -35,7 +35,7 @@ jobs:
           OPEN_ROUTER_MODEL:   ${{ secrets.OPEN_ROUTER_MODEL }}
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
-          LANGCHAIN_TRACING_V2: "false"   # no trazas en CI
+          LANGCHAIN_TRACING_V2: "false"  
           ENVIRONMENT:         test
 
       - name: Build Docker Image (Dry Run)
@@ -65,7 +65,7 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # nombre correcto del .env
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}   
       
       - name: Build Docker Image (Dry Run)
         working-directory: ./frontend

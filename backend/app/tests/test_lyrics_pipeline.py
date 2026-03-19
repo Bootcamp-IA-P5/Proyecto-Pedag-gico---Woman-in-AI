@@ -1,23 +1,8 @@
 """
-Tests locales para verificar el scraping de letras y la normalización con Groq.
-No dependen de Supabase — solo usan letras.com + BeautifulSoup + Groq.
-
-Ejecutar con:
-    cd backend
-    PYTHONPATH=. python -m pytest app/tests/test_lyrics_pipeline.py -v -s
+Tests locales para verificar el scraping de letras y la normalización 
 """
 import os
-import sys
-
-# Configuramos variables de entorno FALSAS antes de importar 
-# para que el cliente de Supabase no lance error al cargar el archivo.
-os.environ["SUPABASE_URL"] = "http://fake-test-url.com"
-os.environ["SUPABASE_KEY"] = "fake-test-key"
-
-# Solucionamos problemas de certificados SSL en algunos entornos Mac
 import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-
 from app.src.scraper.scraping_BeautifSoup_espana import (
     buscar_url_letra,
     scrape_lyrics,
@@ -26,11 +11,19 @@ from app.src.scraper.scraping_BeautifSoup_espana import (
 from app.src.processor.normalize_lyrics import normalizar_letra
 
 
+
+os.environ["SUPABASE_URL"] = "http://fake-test-url.com"
+os.environ["SUPABASE_KEY"] = "fake-test-key"
+
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
+
 # ─── Test 1: Buscar la URL de una canción conocida en letras.com ───────────────
 def test_buscar_url_letra():
     """Verifica que se genera una URL válida para letras.com."""
     url = buscar_url_letra("Bad Bunny", "Tití Me Preguntó")
-    print(f"\n🔍 URL generada: {url}")
+    print("\n🔍 URL generada: {url}")
     assert url is not None, "No se generó URL"
     assert "letras.com" in url, f"URL no es de letras.com: {url}"
 
@@ -43,7 +36,7 @@ def test_scrape_lyrics():
     assert url is not None, "No se pudo encontrar la canción para test"
 
     lyrics = scrape_lyrics(url)
-    print(f"\n📝 Letra extraída ({len(lyrics)} chars):")
+    print("\n📝 Letra extraída ({len(lyrics)} chars):")
     print(lyrics[:300] + "...")
 
     assert lyrics is not None, "No se pudo extraer la letra"
@@ -55,7 +48,7 @@ def test_obtener_letra():
     """Verifica el flujo completo: búsqueda + scraping."""
     # Usamos una canción claramente en español
     lyrics = obtener_letra("Quevedo", "Columbia")
-    print(f"\n📝 Letra completa ({len(lyrics)} chars):")
+    print("\n📝 Letra completa ({len(lyrics)} chars):")
     print(lyrics[:300] + "...")
 
     assert lyrics is not None, "No se obtuvo la letra"
@@ -80,7 +73,7 @@ Va a EMPEZAR la fiesta de todos...
 Tsamina mina, zangalewa"""
 
     resultado = normalizar_letra(letra_cruda)
-    print(f"\n🤖 Letra normalizada:")
+    print("\n🤖 Letra normalizada:")
     print(resultado)
 
     assert resultado is not None, "Groq no devolvió resultado"

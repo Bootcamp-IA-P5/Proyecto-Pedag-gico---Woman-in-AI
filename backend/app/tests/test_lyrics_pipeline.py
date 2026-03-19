@@ -108,8 +108,9 @@ def test_pipeline_local_completo():
     print(lyrics_raw[:200] + "...\n")
 
     # 2. Normalización simulada
-    with patch("app.src.processor.normalize_lyrics.normalizar_letra", return_value=letra_limpia_simulada):
-        lyrics_clean = normalizar_letra(lyrics_raw)
+    import app.src.processor.normalize_lyrics
+    with patch.object(app.src.processor.normalize_lyrics, "normalizar_letra", return_value=letra_limpia_simulada):
+        lyrics_clean = app.src.processor.normalize_lyrics.normalizar_letra(lyrics_raw)
 
     assert lyrics_clean is not None, "La normalización falló"
 

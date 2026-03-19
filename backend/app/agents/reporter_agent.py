@@ -1,86 +1,127 @@
-# backend/app/agents/reporter_agent.py
-import asyncio
-from .base_agent            import BaseAgent
-from .jelous_agent          import CelosAgent
-from .strong_language_agent import InsultosAgent
-from .sumision_agent        import SumisionAgent
-from .object_agent          import ObjetificacionAgent
-from .judge_agent           import JudgeAgent
+"""
+Agente Reporter — orquestador principal
+========================================
+1. Llama al GuardianAgent para validar el input
+2. Si pasa la validación, lanza los 4 agentes en SECUENCIA (no en paralelo)
+   para optimizar el uso de tokens y evitar saturación de la API
+3. Consolida los resultados y devuelve la respuesta final
+"""
+
+from .guardian_agent       import GuardianAgent
+from .celos_agent          import CelosAgent
+from .insultos_agent       import InsultosAgent
+from .sumision_agent       import SumisionAgent
+from .objetificacion_agent import ObjetificacionAgent
+
+
+MENSAJES_ERROR = {
+    "es_letra_cancion":          "El texto introducido no parece una letra de canción. Vértice solo analiza letras de canciones.",
+    "es_español":                "El texto no está en español. Vértice solo analiza letras de canciones en español.",
+    "es_biografia":              "El texto parece una biografía. Vértice solo analiza letras de canciones.",
+    "contiene_insultos_sistema": "El texto contiene contenido inapropiado dirigido al sistema.",
+    "es_spam":                   "El texto parece spam o contenido sin sentido.",
+    "es_codigo":                 "El texto parece código de programación. Vértice solo analiza letras de canciones.",
+    "contiene_datos_personales": "El texto contiene datos personales. Por seguridad no podemos procesarlo.",
+    "es_prompt_injection":       "El texto contiene instrucciones no permitidas. Solo se aceptan letras de canciones.",
+}
 
 
 class ReporterAgent:
 
     def __init__(self):
-        self.agentes: list[BaseAgent] = [
+        self.guardian = GuardianAgent()
+        self.agentes  = [
             CelosAgent(),
             InsultosAgent(),
             SumisionAgent(),
             ObjetificacionAgent(),
         ]
-        self.juez = JudgeAgent()
 
     async def analizar(self, letra: str) -> dict:
-        # PASO 1: 4 agentes × 2 modelos = 8 llamadas en paralelo
-        tareas_groq   = [a.analizar(letra, proveedor="groq")   for a in self.agentes]
-        tareas_openrouter = [a.analizar(letra, proveedor="openrouter") for a in self.agentes]
+        """
+        Pipeline completo:
+          1. Validación de guardarraíles
+          2. Análisis secuencial de las 4 dimensiones (uno tras otro)
+          3. Consolidación de resultados
+        """
 
-        resultados_groq, resultados_openrouter = await asyncio.gather(
-            asyncio.gather(*tareas_groq,   return_exceptions=True),
-            asyncio.gather(*tareas_openrouter, return_exceptions=True),
-        )
+        # ── PASO 1: Guardarraíles ──────────────────────
+        validacion = await self.guardian.validar(letra)
 
-        # PASO 2: juez revisa cada par
-        dimensiones_finales = []
-        errores = []
+        if not validacion["valido"]:
+            return self._respuesta_invalida(validacion)
 
-        for agente, res_groq, res_openrouter in zip(
-            self.agentes, resultados_groq, resultados_openrouter
-        ):
-            if isinstance(res_groq, Exception):
-                errores.append({"dimension": agente.dimension, "error": f"groq: {str(res_groq)}"})
-                continue
-            if isinstance(res_openrouter, Exception):
-                errores.append({"dimension": agente.dimension, "error": f"openrouter: {str(res_openrouter)}"})
-                continue
+        # ── PASO 2: Análisis secuencial ────────────────
+        # Los agentes se ejecutan uno a uno para optimizar
+        # el consumo de tokens y evitar saturación de la API de Groq
+        dimensiones = []
+        errores     = []
 
+        for agente in self.agentes:
             try:
-                veredicto = await self.juez.juzgar(letra, res_groq, res_openrouter)
+                resultado = await agente.analizar(letra)
+                dimensiones.append(resultado)
             except Exception as e:
-                errores.append({"dimension": agente.dimension, "error": f"juez: {str(e)}"})
-                veredicto = {
-                    "puntuacion_final":  round((res_groq["puntuacion"] + res_openrouter["puntuacion"]) / 2),
-                    "hay_discrepancia":  abs(res_groq["puntuacion"] - res_openrouter["puntuacion"]) >= 2,
-                }
+                errores.append({
+                    "dimension": agente.dimension,
+                    "error":     str(e)
+                })
 
-            dimensiones_finales.append({
-                "dimension":         agente.dimension,
-                "puntuacion_groq":   res_groq["puntuacion"],
-                "puntuacion_openrouter": res_openrouter["puntuacion"],
-                "fragmentos_groq":   res_groq["fragmentos"],
-                "fragmentos_openrouter": res_openrouter["fragmentos"],
-                "puntuacion_final":  veredicto.get("puntuacion_final", 0),
-                "hay_discrepancia":  veredicto.get("hay_discrepancia", False),
-                "juez_groq":         veredicto.get("evaluacion_groq", {}),
-                "juez_openrouter":   veredicto.get("evaluacion_openrouter", {}),
-            })
-
-        # PASO 3: consolidar
-        puntuaciones = [d["puntuacion_final"] for d in dimensiones_finales]
+        # ── PASO 3: Consolidación ──────────────────────
+        puntuaciones      = [d["puntuacion"] for d in dimensiones]
         puntuacion_global = round(sum(puntuaciones) / len(puntuaciones), 1) if puntuaciones else 0.0
 
         return {
-            "puntuacion_global":        puntuacion_global,
-            "nivel_global":             self._nivel(puntuacion_global),
-            "dimensiones":              [d for d in dimensiones_finales if d["puntuacion_final"] > 0],
-            "sin_sesgo":                [d["dimension"] for d in dimensiones_finales if d["puntuacion_final"] == 0],
-            "dimensiones_discrepantes": [d["dimension"] for d in dimensiones_finales if d["hay_discrepancia"]],
-            "requiere_revision_humana": len([d for d in dimensiones_finales if d["hay_discrepancia"]]) > 1,
-            "errores":                  errores if errores else None,
+            "valido":            True,
+            "motivo":            None,
+            "puntuacion_global": puntuacion_global,
+            "nivel_global":      self._nivel(puntuacion_global),
+            "dimensiones":       [d for d in dimensiones if d["puntuacion"] > 0],
+            "sin_sesgo":         [d["dimension"] for d in dimensiones if d["puntuacion"] == 0],
+            "errores":           errores if errores else None,
+        }
+
+    @staticmethod
+    def _respuesta_invalida(validacion: dict) -> dict:
+        """
+        Determina el mensaje de error más específico según
+        qué guardarraíl ha fallado, en orden de prioridad.
+        """
+        motivo = validacion.get("motivo") or ""
+
+        if not motivo:
+            for campo, mensaje in MENSAJES_ERROR.items():
+                if campo in ["es_biografia", "contiene_insultos_sistema",
+                              "es_spam", "es_codigo",
+                              "contiene_datos_personales", "es_prompt_injection"]:
+                    if validacion.get(campo):
+                        motivo = mensaje
+                        break
+                elif campo in ["es_letra_cancion", "es_español"]:
+                    if validacion.get(campo) is False:
+                        motivo = mensaje
+                        break
+
+        if not motivo:
+            motivo = "El texto no cumple los requisitos para ser analizado."
+
+        return {
+            "valido":            False,
+            "motivo":            motivo,
+            "puntuacion_global": None,
+            "nivel_global":      None,
+            "dimensiones":       [],
+            "sin_sesgo":         [],
+            "errores":           None,
         }
 
     @staticmethod
     def _nivel(puntuacion: float) -> str:
-        if puntuacion == 0:   return "Sin sesgo detectado"
-        elif puntuacion < 1.5: return "Leve"
-        elif puntuacion < 2.5: return "Moderado"
-        else:                  return "Grave"
+        if puntuacion == 0:
+            return "Sin sesgo detectado"
+        elif puntuacion < 1.5:
+            return "Leve"
+        elif puntuacion < 2.5:
+            return "Moderado"
+        else:
+            return "Grave"

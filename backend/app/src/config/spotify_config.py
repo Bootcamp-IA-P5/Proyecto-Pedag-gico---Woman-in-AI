@@ -1,7 +1,8 @@
 """
 Credenciales y playlists de Spotify. Todo lo de Spotify arranca aquí.
 """
-import os, requests
+import os
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()

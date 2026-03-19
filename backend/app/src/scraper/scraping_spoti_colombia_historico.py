@@ -47,6 +47,9 @@ def buscar_canciones_colombianas(token: str) -> list[dict]:
                 except Exception:
                     cuerpo_respuesta = "<no se pudo leer cuerpo de respuesta>"
 
+                if respuesta.status_code != 200:
+                    print(f"[DEBUG] Error de Spotify: {cuerpo_respuesta}")
+
                 if respuesta.status_code == 401:
                     print("[INFO] Token expirado. Intentando renovarlo...")
                     token = obtener_token_spotify()

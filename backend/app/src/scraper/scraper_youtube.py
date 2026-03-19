@@ -1,5 +1,3 @@
-from datetime import date
-
 from app.src.scraper.youtube_scraper import obtener_tracks_region
 from app.src.config.youtube_config import REGION_CODES
 

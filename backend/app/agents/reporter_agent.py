@@ -8,10 +8,10 @@ Agente Reporter — orquestador principal
 """
 
 from .guardian_agent       import GuardianAgent
-from .celos_agent          import CelosAgent
-from .insultos_agent       import InsultosAgent
+from .jelous_agent         import CelosAgent
+from .strong_language_agent import InsultosAgent
 from .sumision_agent       import SumisionAgent
-from .objetificacion_agent import ObjetificacionAgent
+from .object_agent         import ObjetificacionAgent
 
 
 MENSAJES_ERROR = {

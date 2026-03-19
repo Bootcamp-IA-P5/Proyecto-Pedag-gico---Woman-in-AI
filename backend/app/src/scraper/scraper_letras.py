@@ -1,9 +1,9 @@
 import re
-from datetime import datetime
 import hashlib
 import musicbrainzngs
 from bs4 import BeautifulSoup
 from langdetect import detect, LangDetectException
+
 
 from app.src.config.BeautifulSoup_config import HEADERS, MUSICBRAINZ_EMAIL
 
@@ -122,7 +122,7 @@ def obtener_canciones_del_artista(slug: str, session) -> list:
                             "titulo": titulo,
                             "url": f"https://www.letras.com{href}"
                         })
-    except Exception as e:
+    except Exception:
         pass
     return canciones
 
@@ -163,10 +163,10 @@ def scrape_lyrics(url: str, session) -> str | None:
                 for tag in container(["script", "style", "aside", "button", "a"]):
                     tag.decompose()
                 texto = container.get_text(separator="\n").strip()
-                lineas = [l.strip() for l in texto.splitlines()]
-                texto_limpio = "\n".join(l for l in lineas if l)
+                lineas = [linea.strip() for linea in texto.splitlines()]
+                texto_limpio = "\n".join(linea for linea in lineas if linea)
                 return texto_limpio if len(texto_limpio) > 50 else None
-    except Exception as e:
+    except Exception:
         pass
     return None
 

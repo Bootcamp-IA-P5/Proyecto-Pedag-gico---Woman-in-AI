@@ -19,6 +19,7 @@ import re
 import json
 from groq import AsyncGroq
 from dotenv import load_dotenv
+from langfuse.decorators import observe, langfuse_context
 
 load_dotenv()
 
@@ -122,6 +123,7 @@ def _validacion_rapida(texto: str) -> dict | None:
 
 class GuardianAgent:
 
+    @observe(as_type="generation")
     async def validar(self, texto: str) -> dict:
         """
         Valida el texto en dos fases:
@@ -149,17 +151,31 @@ class GuardianAgent:
         client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
         muestra = texto[:1000]
 
+        messages_payload = [
+            {"role": "system", "content": SYSTEM_PROMPT_GUARDIAN},
+            {"role": "user",   "content": f"Valida este texto:\n\n{muestra}"},
+        ]
+        
+        langfuse_context.update_current_observation(
+            model=MODEL,
+            input=messages_payload
+        )
+
         response = await client.chat.completions.create(
             model=MODEL,
             temperature=0.0,
             max_tokens=256,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_GUARDIAN},
-                {"role": "user",   "content": f"Valida este texto:\n\n{muestra}"},
-            ],
+            messages=messages_payload,
         )
 
         raw = response.choices[0].message.content.strip()
+        usage = {}
+        if hasattr(response, "usage") and response.usage:
+            usage = {
+                "input": int(getattr(response.usage, "prompt_tokens", 0) or 0),
+                "output": int(getattr(response.usage, "completion_tokens", 0) or 0),
+                "total": int(getattr(response.usage, "total_tokens", 0) or 0)
+            }
 
         try:
             resultado = json.loads(raw)
@@ -167,7 +183,7 @@ class GuardianAgent:
             raw_clean = raw.replace("```json", "").replace("```", "").strip()
             resultado = json.loads(raw_clean)
 
-        return {
+        final_result = {
             "valido":                    bool(resultado.get("valido", False)),
             "es_letra_cancion":          bool(resultado.get("es_letra_cancion", False)),
             "es_español":                bool(resultado.get("es_español", False)),
@@ -179,3 +195,10 @@ class GuardianAgent:
             "es_prompt_injection":       bool(resultado.get("es_prompt_injection", False)),
             "motivo":                    resultado.get("motivo", ""),
         }
+        
+        langfuse_context.update_current_observation(
+            usage_details=usage,
+            output=final_result
+        )
+        
+        return final_result

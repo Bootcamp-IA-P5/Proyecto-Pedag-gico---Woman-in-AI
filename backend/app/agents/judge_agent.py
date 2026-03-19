@@ -2,6 +2,7 @@
 import os
 import json
 import httpx
+from langfuse.decorators import observe, langfuse_context
 
 JUEZ_URL   = "https://openrouter.ai/api/v1/chat/completions"
 JUEZ_KEY   = os.getenv("OPEN_ROUTER_KEY")
@@ -45,6 +46,7 @@ REGLA: puntuacion_sugerida es null si la puntuación está bien."""
 
 class JudgeAgent:
 
+    @observe(as_type="generation")
     async def juzgar(
         self,
         letra: str,
@@ -64,6 +66,17 @@ EVALUACIÓN DE OPENROUTER:
 
 Emite tu veredicto."""
 
+        messages_payload = [
+            {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
+            {"role": "user",   "content": user_message},
+        ]
+        
+        langfuse_context.update_current_observation(
+            model=JUEZ_MODEL,
+            input=messages_payload,
+            metadata={"dimension": resultado_groq.get('dimension')}
+        )
+
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(
@@ -76,27 +89,36 @@ Emite tu veredicto."""
                         "model":       JUEZ_MODEL,
                         "temperature": 0,
                         "max_tokens":  1024,
-                        "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
-                            {"role": "user",   "content": user_message},
-                        ],
+                        "messages": messages_payload,
                     }
                 )
                 response.raise_for_status()
 
-            raw = response.json()["choices"][0]["message"]["content"].strip()
+            resp_json = response.json()
+            raw = resp_json["choices"][0]["message"]["content"].strip()
+            usage_data = resp_json.get("usage", {})
+            usage = {
+                "input": usage_data.get("prompt_tokens", 0),
+                "output": usage_data.get("completion_tokens", 0)
+            }
 
             try:
-                return json.loads(raw)
+                veredicto = json.loads(raw)
             except json.JSONDecodeError:
                 raw_clean = raw.replace("```json", "").replace("```", "").strip()
-                return json.loads(raw_clean)
+                veredicto = json.loads(raw_clean)
+                
+            langfuse_context.update_current_observation(
+                usage_details=usage,
+                output=veredicto
+            )
+            return veredicto
 
         except Exception as e:
             # Fallback: media de los dos modelos
             p_groq        = resultado_groq.get("puntuacion", 0)
             p_openrouter  = resultado_openrouter.get("puntuacion", 0)
-            return {
+            fallback_res  = {
                 "dimension":          resultado_groq.get("dimension"),
                 "evaluacion_groq":        {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": f"Juez no disponible: {str(e)}"},
                 "evaluacion_openrouter":  {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": f"Juez no disponible: {str(e)}"},
@@ -104,3 +126,5 @@ Emite tu veredicto."""
                 "hay_discrepancia":   abs(p_groq - p_openrouter) >= 2,
                 "error":              str(e),
             }
+            langfuse_context.update_current_observation(output=fallback_res, level="ERROR", status_message=str(e))
+            return fallback_res

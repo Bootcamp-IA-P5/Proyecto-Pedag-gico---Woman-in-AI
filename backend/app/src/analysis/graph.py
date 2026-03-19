@@ -1,6 +1,7 @@
 # backend/app/src/analysis/graph.py
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
+from langfuse.decorators import observe
 from app.src.analysis.state import AnalysisState
 from app.agents.reporter_agent import ReporterAgent
 
@@ -9,6 +10,7 @@ load_dotenv()
 reporter = ReporterAgent()
 
 
+@observe(as_type="span")
 async def nodo_analizar(state: AnalysisState) -> dict:
     try:
         letra = state.get("letra", "")
@@ -43,6 +45,8 @@ async def nodo_analizar(state: AnalysisState) -> dict:
             "requiere_revision_humana": False,
             "errores":                  [{"error": str(e)}],
         }
+
+@observe(as_type="span")
 async def nodo_consolidar(state: AnalysisState) -> dict:
     return {
         "resultado_final": {

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
+from langfuse.decorators import observe
 from app.src.analysis.graph import analizar_cancion
 from app.src.config.supabase_client import supabase
 import os
@@ -112,6 +113,7 @@ class LyricInput(BaseModel):
     letra:          str
 
 @router.post("/lyrics")
+@observe()
 async def analizar_letra_nueva(input: LyricInput):
     if len(input.letra.strip()) < 50:
         raise HTTPException(
@@ -130,6 +132,7 @@ async def analizar_letra_nueva(input: LyricInput):
 # ── ENDPOINT 2: canción que ya está en Supabase ───────────────────────────────
 
 @router.post("/song/{song_id}")
+@observe()
 async def analizar_por_id(song_id: int):
     # 1. Buscar canción
     cancion = (
@@ -162,7 +165,7 @@ async def analizar_por_id(song_id: int):
         letra=letra_row.data["lyrics_text"],
     )
 
-    # 4. Guardar (ejecutar escritura síncrona en un threadpool para no bloquear el event loop)
+    # 4. Guardar 
     await run_in_threadpool(
         guardar_en_supabase,
         song_id=song_id,

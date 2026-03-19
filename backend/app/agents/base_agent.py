@@ -4,6 +4,7 @@ import json
 import httpx
 from abc import ABC
 from dotenv import load_dotenv
+from langfuse.decorators import observe, langfuse_context
 
 
 load_dotenv()
@@ -27,6 +28,7 @@ class BaseAgent(ABC):
     dimension: str = ""
     system_prompt: str = ""
 
+    @observe(as_type="generation")
     async def analizar(self, letra: str, proveedor: str = "groq") -> dict:
         config = PROVEEDORES.get(proveedor)
         if not config:
@@ -61,6 +63,16 @@ Recuerda:
 - fragmentos debe estar vacío ([]) si puntuacion es 0
 - Cita los fragmentos exactamente como aparecen en la letra"""
 
+        messages_payload = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user",   "content": user_message},
+        ]
+        langfuse_context.update_current_observation(
+            model=config["model"],
+            input=messages_payload,
+            metadata={"proveedor": proveedor, "dimension": self.dimension}
+        )
+
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 config["url"],
@@ -72,15 +84,19 @@ Recuerda:
                     "model":       config["model"],
                     "temperature": 0.1,
                     "max_tokens":  1024,
-                    "messages": [
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user",   "content": user_message},
-                    ],
+                    "messages": messages_payload,
                 }
             )
             response.raise_for_status()
 
-        raw = response.json()["choices"][0]["message"]["content"].strip()
+        resp_json = response.json()
+        raw = resp_json["choices"][0]["message"]["content"].strip()
+        usage_data = resp_json.get("usage", {})
+        usage = {
+            "input": int(usage_data.get("prompt_tokens", 0) or 0),
+            "output": int(usage_data.get("completion_tokens", 0) or 0),
+            "total": int(usage_data.get("total_tokens", 0) or 0)
+        }
 
         try:
             resultado = json.loads(raw)
@@ -90,6 +106,12 @@ Recuerda:
 
         validado = self._validar(resultado)
         validado["modelo"] = f"{proveedor}/{config['model']}"
+        
+        langfuse_context.update_current_observation(
+            usage_details=usage,
+            output=validado
+        )
+        
         return validado
 
     def _validar(self, resultado: dict) -> dict:

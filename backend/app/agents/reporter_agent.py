@@ -7,6 +7,7 @@ Agente Reporter — orquestador principal
 3. Consolida los resultados y devuelve la respuesta final
 """
 
+from langfuse.decorators import observe
 from .guardian_agent       import GuardianAgent
 from .jelous_agent         import CelosAgent
 from .strong_language_agent import InsultosAgent
@@ -37,6 +38,7 @@ class ReporterAgent:
             ObjetificacionAgent(),
         ]
 
+    @observe(as_type="span")
     async def analizar(self, letra: str) -> dict:
         """
         Pipeline completo:

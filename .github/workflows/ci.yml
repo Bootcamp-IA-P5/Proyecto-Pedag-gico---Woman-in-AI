@@ -18,8 +18,7 @@ jobs:
       - name: Instalar dependencias
         working-directory: backend
         run: uv sync
-        env:
-          UV_SYSTEM_PYTHON: "1"
+
 
       - name: Lint
         working-directory: backend
@@ -29,14 +28,19 @@ jobs:
         working-directory: backend
         run: uv run pytest
         env:
-          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
-          OPEN_ROUTER_KEY:     ${{ secrets.OPEN_ROUTER_KEY }}
-          OPEN_ROUTER_URL:     ${{ secrets.OPEN_ROUTER_URL }}
-          OPEN_ROUTER_MODEL:   ${{ secrets.OPEN_ROUTER_MODEL }}
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
-          LANGCHAIN_TRACING_V2: "false"  
-          ENVIRONMENT:         test
+          ENVIRONMENT:              test
+          GROQ_API_KEY:             fake-groq-key
+          GENIUS_ACCESS_TOKEN:      fake-genius-token
+          MUSICBRAINZ_EMAIL:        test@example.com
+          SUPABASE_URL:             http://fake-url-for-tests.com
+          SUPABASE_KEY:             fake-key-for-tests
+          SPOTIPY_CLIENT_ID:        fake-client-id
+          SPOTIPY_CLIENT_SECRET:    fake-client-secret
+          YOUTUBE_API_KEY:          fake-youtube-key
+          LANGCHAIN_TRACING_V2:     "false"
+          OPEN_ROUTER_KEY:          ${{ secrets.OPEN_ROUTER_KEY }}
+          OPEN_ROUTER_URL:          ${{ secrets.OPEN_ROUTER_URL }}
+          OPEN_ROUTER_MODEL:        ${{ secrets.OPEN_ROUTER_MODEL }}
 
       - name: Build Docker Image (Dry Run)
         working-directory: ./backend

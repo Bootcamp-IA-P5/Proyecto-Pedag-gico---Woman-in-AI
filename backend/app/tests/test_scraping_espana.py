@@ -4,9 +4,10 @@ import sys
 import unittest
 import ssl
 from unittest.mock import patch
-
 os.environ["SUPABASE_URL"] = "http://fake-test-url.com"
 os.environ["SUPABASE_KEY"] = "fake-test-key"
+os.environ["MUSICBRAINZ_EMAIL"] = "test@example.com"
+
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 

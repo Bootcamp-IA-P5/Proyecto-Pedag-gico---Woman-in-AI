@@ -14,7 +14,7 @@ from app.src.processor.normalize_lyrics import normalizar_letra
 
 os.environ["SUPABASE_URL"] = "http://fake-test-url.com"
 os.environ["SUPABASE_KEY"] = "fake-test-key"
-
+os.environ["MUSICBRAINZ_EMAIL"] = "test-musicbrainz@example.com"
 
 ssl._create_default_https_context = ssl._create_unverified_context
 

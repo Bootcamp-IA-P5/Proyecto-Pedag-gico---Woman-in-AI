@@ -12,7 +12,7 @@ def convertir_duracion(duration_iso):
 
     try:
         return int(isodate.parse_duration(duration_iso).total_seconds())
-    except(TypeError, ValueError, Exception): 
+    except (TypeError, ValueError, isodate.ISO8601Error):
         return None
        
 

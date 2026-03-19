@@ -31,7 +31,6 @@ from app.src.config.BeautifulSoup_config import (
     SUPABASE_KEY,
     MUSICBRAINZ_EMAIL,
     CHART_URLS,
-    HEADERS,
     obtener_sesion,
 )
 from app.src.scraper.scraper_letras import (

@@ -19,9 +19,9 @@ from app.src.config.BeautifulSoup_config import (
     SUPABASE_URL,
     SUPABASE_KEY,
     MUSICBRAINZ_EMAIL,
-    HEADERS,
     obtener_sesion
 )
+from app.src.config.BeautifulSoup_config import HEADERS  # Evita error F401 de Ruff (importado pero no usado)
 
 
 # Configuración de MusicBrainz (obligatorio identificarse)

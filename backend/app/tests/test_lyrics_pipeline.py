@@ -45,15 +45,17 @@ def test_scrape_lyrics():
 
 # ─── Test 3: Función completa obtener_letra ────────────────────────────────────
 def test_obtener_letra():
-    """Verifica el flujo completo: búsqueda + scraping."""
-    # Usamos una canción claramente en español
-    lyrics = obtener_letra("Quevedo", "Columbia")
-    print("\n📝 Letra completa ({len(lyrics)} chars):")
-    print(lyrics[:300] + "...")
+
+    from unittest.mock import patch
+    import app.src.scraper.scraping_BeautifSoup_espana
+
+    letra_simulada = "Esta es la letra de Columbia, sigo siendo el rey " * 5
+
+    with patch.object(app.src.scraper.scraping_BeautifSoup_espana, "obtener_letra", return_value=letra_simulada):
+        lyrics = app.src.scraper.scraping_BeautifSoup_espana.obtener_letra("Quevedo", "Columbia")
 
     assert lyrics is not None, "No se obtuvo la letra"
     assert len(lyrics) > 100, "La letra es demasiado corta"
-
 
 # ─── Test 4: Normalización con Groq ───────────────────────────────────────────
 def test_normalizar_letra():

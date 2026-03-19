@@ -12,7 +12,7 @@ os.environ["SUPABASE_KEY"] = "fake-test-key"
 # 2. Añadimos la carpeta 'src' al path de Python para que encuentre los módulos
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from src.scraper.scraping_BeautifSoup_espana import obtener_letra, validar_idioma # noqa: E402
+from scraper.scraping_BeautifSoup_espana import obtener_letra, validar_idioma  # noqa: E402
 # 3. Solucionamos problemas de certificados SSL en algunos entornos Mac
 
 ssl._create_default_https_context = ssl._create_unverified_context

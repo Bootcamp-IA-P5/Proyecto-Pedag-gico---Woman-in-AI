@@ -96,4 +96,3 @@ Emite tu veredicto."""
             }
             langfuse_context.update_current_observation(output=fallback_res, level="ERROR", status_message=str(e))
             return fallback_res
-            return fallback_res

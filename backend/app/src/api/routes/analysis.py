@@ -94,7 +94,6 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
                 **scores(),
                 "evidence_objectification": get_fragmentos("Objetificación Sexual"),
                 "evidence_roles": get_fragmentos("Sumisión / Roles de Género"),
-                "evidence_possession": get_fragmentos("Celos / Control"),
                 "evidence_degrading": get_fragmentos("Insultos / Lenguaje Degradante"),
                 "dominant_narrative": nivel_global,
                 "gender_representation": gender_representation,
@@ -113,6 +112,7 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
         .insert(
             {
                 "song_id": song_id,
+                "evaluation_model_a_id": id_openrouter,
                 "evaluation_model_b_id": id_openrouter,
                 # Single-model persistence: keep diff_* neutral to avoid semantic confusion.
                 "diff_score_objectification": 0,

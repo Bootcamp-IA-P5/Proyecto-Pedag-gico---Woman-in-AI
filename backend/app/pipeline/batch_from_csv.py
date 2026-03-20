@@ -61,11 +61,11 @@ SPANISH_LANG_VALUES = {"es", "español", "spanish", "es-la", "es-us", "spanglish
 
 
 def delete_existing_evaluations(song_id: int) -> int:
-    evals_deleted = (
-        supabase.table("llm_evaluations").delete().eq("song_id", song_id).execute()
-    )
     comparisons_deleted = (
         supabase.table("model_comparison").delete().eq("song_id", song_id).execute()
+    )
+    evals_deleted = (
+        supabase.table("llm_evaluations").delete().eq("song_id", song_id).execute()
     )
     return (len(evals_deleted.data) if evals_deleted.data else 0) + (
         len(comparisons_deleted.data) if comparisons_deleted.data else 0
@@ -143,7 +143,6 @@ def guardar_en_supabase(
                 **scores(),
                 "evidence_objectification": get_fragmentos("Objetificación Sexual"),
                 "evidence_roles": get_fragmentos("Sumisión / Roles de Género"),
-                "evidence_possession": get_fragmentos("Celos / Control"),
                 "evidence_degrading": get_fragmentos("Insultos / Lenguaje Degradante"),
             }
         )
@@ -155,6 +154,7 @@ def guardar_en_supabase(
     supabase.table("model_comparison").insert(
         {
             "song_id": song_id,
+            "evaluation_model_a_id": id_eval,
             "evaluation_model_b_id": id_eval,
             # Single-model pipeline: no model-vs-model delta is available.
             "diff_score_objectification": 0,

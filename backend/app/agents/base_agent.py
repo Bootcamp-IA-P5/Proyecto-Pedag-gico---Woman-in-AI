@@ -14,6 +14,22 @@ load_dotenv()
 log = logging.getLogger(__name__)
 
 PROVEEDORES = {
+    "together": {
+        "url": os.getenv(
+            "TOGETHER_URL",
+            "https://api.together.xyz/v1/chat/completions",
+        ),
+        "key": os.getenv("TOGETHER_API_KEY"),
+        "model": os.getenv(
+            "TOGETHER_MODEL",
+            "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        ),
+    },
+    "compat": {
+        "url": os.getenv("COMPAT_LLM_URL"),
+        "key": os.getenv("COMPAT_LLM_KEY"),
+        "model": os.getenv("COMPAT_LLM_MODEL"),
+    },
     "github": {
         "url": os.getenv(
             "GITHUB_MODELS_URL",
@@ -28,12 +44,14 @@ PROVEEDORES = {
             "https://openrouter.ai/api/v1/chat/completions",
         ),
         "key": os.getenv("OPEN_ROUTER_KEY"),
-        "model": os.getenv("OPEN_ROUTER_MODEL", "openrouter/hunter-alpha"),
+        "model": os.getenv("OPEN_ROUTER_MODEL", "openrouter/auto"),
     },
 }
 DEFAULT_PROVIDER_ORDER = [
     p.strip()
-    for p in os.getenv("LLM_PROVIDER_ORDER", "github,openrouter").split(",")
+    for p in os.getenv(
+        "LLM_PROVIDER_ORDER", "together,compat,openrouter,github"
+    ).split(",")
     if p.strip()
 ]
 
@@ -64,8 +82,8 @@ _llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY_LIMIT)
 
 
 # ── Configuración de reintentos ────────────────────────────────────────────────
-MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "1"))
-RETRY_BASE = float(os.getenv("LLM_RETRY_BASE", "1.5"))
+MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
+RETRY_BASE = float(os.getenv("LLM_RETRY_BASE", "2.0"))
 RETRY_ON_CODES = {429, 500, 502, 503, 504}  # códigos que disparan reintento
 
 
@@ -120,7 +138,12 @@ Recuerda:
         }
 
 
-def _clean_json_text(raw: str) -> str:
+def _clean_json_text(raw: str | dict | list | None) -> str:
+    if raw is None:
+        raise ValueError("Respuesta vacia del modelo (content=None)")
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, ensure_ascii=False)
+
     raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.replace("```json", "").replace("```", "").strip()
@@ -136,6 +159,30 @@ def _extract_json_object(raw: str) -> dict:
         if not match:
             raise
         return json.loads(match.group(0))
+
+
+def _extract_choice_content(response_json: dict) -> str | dict | list | None:
+    choices = response_json.get("choices") or []
+    if not choices:
+        raise ValueError("Respuesta del proveedor sin 'choices'")
+
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+
+    # Some providers return content as a list of typed blocks.
+    if isinstance(content, list):
+        text_blocks: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                block_text = block.get("text") or block.get("content")
+                if block_text:
+                    text_blocks.append(str(block_text))
+            elif isinstance(block, str):
+                text_blocks.append(block)
+        if text_blocks:
+            return "\n".join(text_blocks)
+
+    return content
 
 
 def _validate_provider_config(provider_name: str) -> dict:
@@ -203,7 +250,7 @@ async def _call_provider_json(
                 response.raise_for_status()
 
             response.raise_for_status()
-            raw = response.json()["choices"][0]["message"]["content"]
+            raw = _extract_choice_content(response.json())
             return _extract_json_object(raw)
 
         except (
@@ -211,6 +258,7 @@ async def _call_provider_json(
             httpx.ConnectError,
             httpx.HTTPStatusError,
             json.JSONDecodeError,
+            ValueError,
         ) as e:
             ultimo_error = e
             if isinstance(e, httpx.HTTPStatusError):
@@ -244,7 +292,18 @@ async def call_model_json(
     max_tokens: int = 1024,
     context_label: str = "llm-call",
 ) -> tuple[dict, str, str]:
-    providers = provider_order or DEFAULT_PROVIDER_ORDER
+    requested = provider_order or DEFAULT_PROVIDER_ORDER
+    providers = [p for p in requested if p in PROVEEDORES]
+    unknown = [p for p in requested if p not in PROVEEDORES]
+    if unknown:
+        log.warning("Proveedores ignorados (no implementados): %s", ", ".join(unknown))
+
+    if not providers:
+        raise RuntimeError(
+            "No hay proveedores validos configurados. "
+            "Revisa LLM_PROVIDER_ORDER y las claves disponibles."
+        )
+
     errors: list[str] = []
 
     for provider_name in providers:

@@ -4,6 +4,7 @@ import musicbrainzngs
 from bs4 import BeautifulSoup
 from langdetect import detect, LangDetectException
 
+
 from app.src.config.BeautifulSoup_config import HEADERS, MUSICBRAINZ_EMAIL
 
 try:

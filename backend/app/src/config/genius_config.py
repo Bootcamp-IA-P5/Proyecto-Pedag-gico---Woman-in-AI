@@ -2,7 +2,8 @@
 backend/app/src/config/genius_config.py
 Credenciales y cliente de Genius. Todo lo de letras arranca aquí.
 """
-import os, lyricsgenius
+import os
+import lyricsgenius
 from dotenv import load_dotenv
 
 load_dotenv()

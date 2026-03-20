@@ -1,4 +1,4 @@
-import time
+
 from datetime import date, datetime
 from app.src.config.supabase_client import supabase
 

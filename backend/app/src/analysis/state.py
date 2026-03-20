@@ -15,8 +15,11 @@ class AnalysisState(TypedDict):
     # ── Lo que produce el nodo de análisis ─────────
     dimensiones:               Optional[list[dict]]
     puntuacion_global:         Optional[float]
+    puntuacion_global_preliminar: Optional[float]
     nivel_global:              Optional[str]
     sin_sesgo:                 Optional[list[str]]
+    dimensiones_inconclusas:   Optional[list[str]]
+    cobertura_dimensiones:     Optional[float]
     dimensiones_discrepantes:  Optional[list[str]]
     requiere_revision_humana:  Optional[bool]
     errores:                   Optional[list[dict]]

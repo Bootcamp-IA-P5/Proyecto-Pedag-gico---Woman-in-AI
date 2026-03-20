@@ -1,24 +1,19 @@
 # backend/app/agents/judge_agent.py
-import os
 import json
-import httpx
-
-# ── Configuración OpenRouter ─────────────────────────────
-JUEZ_URL   = "https://openrouter.ai/api/v1/chat/completions"
-JUEZ_KEY   = os.getenv("OPEN_ROUTER_KEY")
-JUEZ_MODEL = "openrouter/hunter-alpha"  # modelo OpenRouter unificado
+from .base_agent import call_model_json
 
 SYSTEM_PROMPT_JUEZ = """Eres un juez experto en análisis de sesgos de género 
 en canciones en español.
 
 Recibirás:
 1. La letra original de una canción
-2. Una evaluación de la misma dimensión hecha por un modelo
+2. Una evaluación inicial por dimensión
+3. Una revisión crítica de esa evaluación
 
 Tu trabajo es:
 - Comprobar que los fragmentos citados realmente aparecen en la letra
-- Decidir si la puntuación del 0 al 3 está bien justificada
-- Si no estás de acuerdo, sugerir la puntuación correcta
+- Validar si la revisión crítica tiene sentido
+- Entregar una puntuación final robusta del 0 al 3
 
 ESCALA: 0=no presente, 1=leve, 2=claro, 3=extremo
 
@@ -37,58 +32,50 @@ Devuelve ÚNICAMENTE este JSON válido, sin texto adicional ni markdown:
 
 REGLA: puntuacion_sugerida es null si la puntuación está bien."""
 
-class JudgeAgent:
 
-    async def juzgar(self, letra: str, resultado_openrouter: dict) -> dict:
+class JudgeAgent:
+    async def juzgar(
+        self, letra: str, resultado_modelo: dict, revision_critica: dict
+    ) -> dict:
         user_message = f"""LETRA ORIGINAL:
 \"\"\"{letra}\"\"\"
 
-DIMENSIÓN: {resultado_openrouter.get('dimension')}
+DIMENSIÓN: {resultado_modelo.get("dimension")}
 
-EVALUACIÓN DEL MODELO:
-{json.dumps(resultado_openrouter, ensure_ascii=False, indent=2)}
+EVALUACIÓN INICIAL DEL MODELO:
+{json.dumps(resultado_modelo, ensure_ascii=False, indent=2)}
+
+REVISION CRITICA:
+{json.dumps(revision_critica, ensure_ascii=False, indent=2)}
 
 Emite tu veredicto."""
 
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(
-                    JUEZ_URL,
-                    headers={
-                        "Authorization": f"Bearer {JUEZ_KEY}",
-                        "Content-Type":  "application/json",
-                    },
-                    json={
-                        "model":       JUEZ_MODEL,
-                        "temperature": 0,
-                        "max_tokens":  1024,
-                        "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
-                            {"role": "user",   "content": user_message},
-                        ],
-                    }
-                )
-                response.raise_for_status()
-
-            raw = response.json()["choices"][0]["message"]["content"].strip()
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                raw_clean = raw.replace("```json", "").replace("```", "").strip()
-                return json.loads(raw_clean)
+            payload, provider_name, model_name = await call_model_json(
+                system_prompt=SYSTEM_PROMPT_JUEZ,
+                user_message=user_message,
+                provider_order=None,
+                temperature=0,
+                max_tokens=900,
+                context_label=f"juez:{resultado_modelo.get('dimension', 'N/A')}",
+            )
+            payload["proveedor_juez"] = provider_name
+            payload["modelo_juez"] = model_name
+            return payload
 
         except Exception as e:
-            # Fallback: usa directamente la puntuación del modelo
-            p_openrouter = resultado_openrouter.get("puntuacion", 0)
+            p_critica = revision_critica.get(
+                "puntuacion_revisada", resultado_modelo.get("puntuacion", 0)
+            )
             return {
-                "dimension": resultado_openrouter.get("dimension"),
+                "dimension": resultado_modelo.get("dimension"),
                 "evaluacion_openrouter": {
                     "fragmentos_validos": True,
                     "puntuacion_justificada": True,
                     "puntuacion_sugerida": None,
-                    "razonamiento": f"Juez no disponible: {str(e)}"
+                    "razonamiento": f"Juez no disponible: {str(e)}",
                 },
-                "puntuacion_final": p_openrouter,
+                "puntuacion_final": p_critica,
                 "hay_discrepancia": False,
                 "error": str(e),
             }

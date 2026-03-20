@@ -9,6 +9,7 @@ httpx==0.28.1
  
 # Groq LLM
 groq
+langgraph>=1.1.0
  
 # Validación
 pydantic==2.12.5

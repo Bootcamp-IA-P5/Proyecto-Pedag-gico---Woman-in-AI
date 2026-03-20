@@ -38,137 +38,141 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.src.analysis.graph import analizar_cancion          # noqa: E402
-from app.src.config.supabase_client import supabase          # noqa: E402
+from app.src.analysis.graph import analizar_cancion  # noqa: E402
+from app.src.config.supabase_client import supabase  # noqa: E402
 
 
 # ── Columnas del CSV (SSOT) ────────────────────────────────────────────────────
-COL_SONG_ID          = "id_song"
-COL_TITLE            = "title"
-COL_ARTIST           = "artist"
-COL_GENRE            = "genre"
-COL_YEAR             = "year"
-COL_ARTIST_GENDER    = "artist_gender"
-COL_LYRICS_ID        = "id_lyric"
-COL_LYRICS_TEXT      = "lyrics_text"
-COL_LANGUAGE         = "language_detected"
+COL_SONG_ID = "id_song"
+COL_TITLE = "title"
+COL_ARTIST = "artist"
+COL_GENRE = "genre"
+COL_YEAR = "year"
+COL_ARTIST_GENDER = "artist_gender"
+COL_LYRICS_ID = "id_lyric"
+COL_LYRICS_TEXT = "lyrics_text"
+COL_LANGUAGE = "language_detected"
 
 # Valores que se consideran español (normalizado a minúsculas)
-SPANISH_LANG_VALUES  = {"es", "español", "spanish", "es-la", "es-us", "spanglish"}
+SPANISH_LANG_VALUES = {"es", "español", "spanish", "es-la", "es-us", "spanglish"}
 
 
 # ── Supabase helpers ───────────────────────────────────────────────────────────
 
+
 def delete_existing_evaluations(song_id: int) -> int:
-    res = (
-        supabase.table("llm_evaluations")
-        .delete()
-        .eq("song_id", song_id)
-        .execute()
-    )
+    res = supabase.table("llm_evaluations").delete().eq("song_id", song_id).execute()
     return len(res.data) if res.data else 0
 
 
-def guardar_en_supabase(song_id: int, lyrics_id: int, artist_gender: str, resultado: dict) -> None:
+def guardar_en_supabase(
+    song_id: int, lyrics_id: int, artist_gender: str, resultado: dict
+) -> None:
     dimensiones = {d["dimension"]: d for d in resultado.get("dimensiones", [])}
 
-    def get_score(nombre_dimension: str, modelo: str) -> int:
+    def get_score(nombre_dimension: str) -> int:
         dim = dimensiones.get(nombre_dimension, {})
-        key = "puntuacion_groq" if modelo == "groq" else "puntuacion_openrouter"
-        return dim.get(key, 0) or 0
+        return int(
+            dim.get(
+                "puntuacion_final",
+                dim.get("puntuacion_openrouter", dim.get("puntuacion_groq", 0)),
+            )
+            or 0
+        )
 
-    def get_fragmentos(nombre_dimension: str, modelo: str) -> str | None:
+    def get_fragmentos(nombre_dimension: str) -> str | None:
         dim = dimensiones.get(nombre_dimension, {})
-        key = "fragmentos_groq" if modelo == "groq" else "fragmentos_openrouter"
-        fragmentos = dim.get(key, []) or []
+        fragmentos = (
+            dim.get("fragmentos_openrouter") or dim.get("fragmentos_groq") or []
+        )
         return " | ".join(fragmentos) if fragmentos else None
 
-    def scores_para_modelo(modelo: str) -> dict:
+    def scores() -> dict:
         s = {
-            "score_objectification": get_score("Objetificación Sexual",          modelo),
-            "score_roles":           get_score("Sumisión / Roles de Género",     modelo),
-            "score_possession":      get_score("Celos / Control",                modelo),
-            "score_degrading":       get_score("Insultos / Lenguaje Degradante", modelo),
+            "score_objectification": get_score("Objetificación Sexual"),
+            "score_roles": get_score("Sumisión / Roles de Género"),
+            "score_possession": get_score("Celos / Control"),
+            "score_degrading": get_score("Insultos / Lenguaje Degradante"),
         }
         s["total_score"] = sum(s.values())
         return s
 
-    nivel_global      = resultado.get("nivel_global", "")
+    nivel_global = resultado.get("nivel_global", "")
     puntuacion_global = resultado.get("puntuacion_global", 0)
     explanation = (
         f"puntuacion_global={puntuacion_global} | "
         f"nivel={nivel_global} | "
         f"discrepantes={resultado.get('dimensiones_discrepantes', [])}"
     )
-    gender_representation = ", ".join(d["dimension"] for d in resultado.get("dimensiones", []))
-    symbolic_roles        = ", ".join(resultado.get("sin_sesgo", []))
+    gender_representation = ", ".join(
+        d["dimension"] for d in resultado.get("dimensiones", [])
+    )
+    symbolic_roles = ", ".join(resultado.get("sin_sesgo", []))
 
     base = {
-        "song_id":               song_id,
-        "lyrics_id":             lyrics_id,
-        "prompt_version":        resultado.get("prompt_version", "v1.0"),
-        "temperature":           0.1,
-        "dominant_narrative":    nivel_global,
+        "song_id": song_id,
+        "lyrics_id": lyrics_id,
+        "prompt_version": resultado.get("prompt_version", "v1.0"),
+        "temperature": 0.1,
+        "dominant_narrative": nivel_global,
         "gender_representation": gender_representation,
-        "symbolic_roles":        symbolic_roles,
-        "explanation":           explanation,
-        "llm_raw_response":      resultado,
-        "artist_gender":         artist_gender or "unknown",
-        "evaluated_at":          datetime.now(timezone.utc).isoformat(),
+        "symbolic_roles": symbolic_roles,
+        "explanation": explanation,
+        "llm_raw_response": resultado,
+        "artist_gender": artist_gender or "unknown",
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # ── Groq ──────────────────────────────────────────────────────────────────
-    eval_groq = supabase.table("llm_evaluations").insert({
-        **base,
-        "model_name":               "meta-llama/llama-4-scout-17b-16e-instruct",
-        **scores_para_modelo("groq"),
-        "evidence_objectification": get_fragmentos("Objetificación Sexual",          "groq"),
-        "evidence_roles":           get_fragmentos("Sumisión / Roles de Género",     "groq"),
-        "evidence_possession":      get_fragmentos("Celos / Control",                "groq"),
-        "evidence_degrading":       get_fragmentos("Insultos / Lenguaje Degradante", "groq"),
-    }).execute()
+    eval_result = (
+        supabase.table("llm_evaluations")
+        .insert(
+            {
+                **base,
+                "model_name": resultado.get(
+                    "modelo_principal",
+                    os.getenv("GITHUB_MODELS_MODEL")
+                    or os.getenv("OPEN_ROUTER_MODEL", "openrouter/hunter-alpha"),
+                ),
+                **scores(),
+                "evidence_objectification": get_fragmentos("Objetificación Sexual"),
+                "evidence_roles": get_fragmentos("Sumisión / Roles de Género"),
+                "evidence_possession": get_fragmentos("Celos / Control"),
+                "evidence_degrading": get_fragmentos("Insultos / Lenguaje Degradante"),
+            }
+        )
+        .execute()
+    )
 
-    # ── OpenRouter ────────────────────────────────────────────────────────────
-    eval_openrouter = supabase.table("llm_evaluations").insert({
-        **base,
-        "model_name":               os.getenv("OPEN_ROUTER_MODEL", "openrouter/hunter-alpha"),
-        **scores_para_modelo("openrouter"),
-        "evidence_objectification": get_fragmentos("Objetificación Sexual",          "openrouter"),
-        "evidence_roles":           get_fragmentos("Sumisión / Roles de Género",     "openrouter"),
-        "evidence_possession":      get_fragmentos("Celos / Control",                "openrouter"),
-        "evidence_degrading":       get_fragmentos("Insultos / Lenguaje Degradante", "openrouter"),
-    }).execute()
+    id_eval = eval_result.data[0]["id"]
 
-    id_groq       = eval_groq.data[0]["id"]
-    id_openrouter = eval_openrouter.data[0]["id"]
-
-    # ── model_comparison ──────────────────────────────────────────────────────
     def diff(dim: str) -> int:
-        return abs(get_score(dim, "groq") - get_score(dim, "openrouter"))
+        return abs(get_score(dim))
 
-    supabase.table("model_comparison").insert({
-        "song_id":                    song_id,
-        "evaluation_model_a_id":      id_groq,
-        "evaluation_model_b_id":      id_openrouter,
-        "diff_score_objectification": diff("Objetificación Sexual"),
-        "diff_score_roles":           diff("Sumisión / Roles de Género"),
-        "diff_score_possession":      diff("Celos / Control"),
-        "diff_score_degrading":       diff("Insultos / Lenguaje Degradante"),
-        "full_agreement":             len(resultado.get("dimensiones_discrepantes", [])) == 0,
-        "cohen_kappa":                resultado.get("acuerdo_kendall_tau"),
-    }).execute()
+    supabase.table("model_comparison").insert(
+        {
+            "song_id": song_id,
+            "evaluation_model_b_id": id_eval,
+            "diff_score_objectification": diff("Objetificación Sexual"),
+            "diff_score_roles": diff("Sumisión / Roles de Género"),
+            "diff_score_possession": diff("Celos / Control"),
+            "diff_score_degrading": diff("Insultos / Lenguaje Degradante"),
+            "full_agreement": len(resultado.get("dimensiones_discrepantes", [])) == 0,
+            "cohen_kappa": resultado.get("acuerdo_kendall_tau"),
+        }
+    ).execute()
 
 
 # ── Procesar una fila del CSV ──────────────────────────────────────────────────
 
+
 async def procesar_fila(row: dict, dry_run: bool, semaphore: asyncio.Semaphore) -> dict:
-    song_id       = int(row[COL_SONG_ID])
-    lyrics_id     = int(row[COL_LYRICS_ID]) if row.get(COL_LYRICS_ID) else None
-    title         = row[COL_TITLE]
-    artist        = row[COL_ARTIST]
-    genre         = row.get(COL_GENRE) or "desconocido"
+    song_id = int(row[COL_SONG_ID])
+    lyrics_id = int(row[COL_LYRICS_ID]) if row.get(COL_LYRICS_ID) else None
+    title = row[COL_TITLE]
+    artist = row[COL_ARTIST]
+    genre = row.get(COL_GENRE) or "desconocido"
     artist_gender = row.get(COL_ARTIST_GENDER) or "unknown"
-    lyrics_text   = row.get(COL_LYRICS_TEXT, "")
+    lyrics_text = row.get(COL_LYRICS_TEXT, "")
 
     async with semaphore:
         log.info(f"▶ song_id={song_id} | {artist} — {title}")
@@ -219,14 +223,15 @@ async def procesar_fila(row: dict, dry_run: bool, semaphore: asyncio.Semaphore) 
             f"nivel={resultado.get('nivel_global')}"
         )
         return {
-            "song_id":           song_id,
-            "status":            "ok",
+            "song_id": song_id,
+            "status": "ok",
             "puntuacion_global": resultado.get("puntuacion_global"),
-            "nivel_global":      resultado.get("nivel_global"),
+            "nivel_global": resultado.get("nivel_global"),
         }
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
 
 async def main(args: argparse.Namespace) -> None:
     csv_path = Path(args.csv)
@@ -242,8 +247,8 @@ async def main(args: argparse.Namespace) -> None:
         lang = row.get(COL_LANGUAGE, "").strip().lower()
         return lang in SPANISH_LANG_VALUES
 
-    rows_con_letra  = [r for r in rows if r.get(COL_LYRICS_TEXT, "").strip()]
-    rows_validas    = [r for r in rows_con_letra if es_espanol(r)]
+    rows_con_letra = [r for r in rows if r.get(COL_LYRICS_TEXT, "").strip()]
+    rows_validas = [r for r in rows_con_letra if es_espanol(r)]
     rows_otros_lang = len(rows_con_letra) - len(rows_validas)
 
     log.info(
@@ -261,14 +266,14 @@ async def main(args: argparse.Namespace) -> None:
         f"A procesar: {len(rows_validas)} | Concurrencia: {args.concurrency}"
     )
 
-    semaphore  = asyncio.Semaphore(args.concurrency)
-    tareas     = [procesar_fila(row, args.dry_run, semaphore) for row in rows_validas]
+    semaphore = asyncio.Semaphore(args.concurrency)
+    tareas = [procesar_fila(row, args.dry_run, semaphore) for row in rows_validas]
     resultados = await asyncio.gather(*tareas)
 
-    ok      = sum(1 for r in resultados if r["status"] == "ok")
+    ok = sum(1 for r in resultados if r["status"] == "ok")
     skipped = sum(1 for r in resultados if r["status"] == "skipped")
-    dry     = sum(1 for r in resultados if r["status"] == "dry_run")
-    errors  = [r for r in resultados if r["status"] == "error"]
+    dry = sum(1 for r in resultados if r["status"] == "dry_run")
+    errors = [r for r in resultados if r["status"] == "error"]
 
     log.info("─" * 60)
     log.info(
@@ -284,11 +289,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="CSV local → LangGraph (sin backend) → Supabase"
     )
-    parser.add_argument("--csv", default="../data/final/dataset_final.csv", help="Ruta al CSV")
-    parser.add_argument("--concurrency", type=int, default=1,
-                        help="Canciones en paralelo (default: 1)")
-    parser.add_argument("--limit",       type=int, default=None,
-                        help="Procesar solo las primeras N canciones")
-    parser.add_argument("--dry-run",     action="store_true",
-                        help="Ejecuta el análisis pero NO guarda en Supabase")
+    parser.add_argument(
+        "--csv", default="../data/final/dataset_final.csv", help="Ruta al CSV"
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=1, help="Canciones en paralelo (default: 1)"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Procesar solo las primeras N canciones"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Ejecuta el análisis pero NO guarda en Supabase",
+    )
     asyncio.run(main(parser.parse_args()))

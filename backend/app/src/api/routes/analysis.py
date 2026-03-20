@@ -108,19 +108,17 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
 
     id_openrouter = eval_openrouter.data[0]["id"]
 
-    def diff(dim_nombre: str) -> int:
-        return abs(get_score(dim_nombre))
-
     (
         supabase.table("model_comparison")
         .insert(
             {
                 "song_id": song_id,
                 "evaluation_model_b_id": id_openrouter,
-                "diff_score_objectification": diff("Objetificación Sexual"),
-                "diff_score_roles": diff("Sumisión / Roles de Género"),
-                "diff_score_possession": diff("Celos / Control"),
-                "diff_score_degrading": diff("Insultos / Lenguaje Degradante"),
+                # Single-model persistence: keep diff_* neutral to avoid semantic confusion.
+                "diff_score_objectification": 0,
+                "diff_score_roles": 0,
+                "diff_score_possession": 0,
+                "diff_score_degrading": 0,
                 "full_agreement": len(resultado.get("dimensiones_discrepantes", []))
                 == 0,
                 "cohen_kappa": resultado.get("acuerdo_kendall_tau"),

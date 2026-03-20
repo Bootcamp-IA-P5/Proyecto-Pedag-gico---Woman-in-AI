@@ -11,7 +11,7 @@ load_dotenv()
 
 reporter = ReporterAgent()
 MAX_LYRIC_CHARS = int(os.getenv("ANALYSIS_MAX_LYRIC_CHARS", "12000"))
-ENABLE_LYRIC_SANITIZATION = os.getenv("ANALYSIS_SANITIZE_LYRICS", "true").lower() == "true"
+ENABLE_LYRIC_SANITIZATION = os.getenv("ANALYSIS_SANITIZE_LYRICS", "false").lower() == "true"
 
 SENSITIVE_TERMS = [
     r"\bputa\b",

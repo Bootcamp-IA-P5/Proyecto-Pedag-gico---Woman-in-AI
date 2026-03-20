@@ -61,8 +61,15 @@ SPANISH_LANG_VALUES = {"es", "español", "spanish", "es-la", "es-us", "spanglish
 
 
 def delete_existing_evaluations(song_id: int) -> int:
-    res = supabase.table("llm_evaluations").delete().eq("song_id", song_id).execute()
-    return len(res.data) if res.data else 0
+    evals_deleted = (
+        supabase.table("llm_evaluations").delete().eq("song_id", song_id).execute()
+    )
+    comparisons_deleted = (
+        supabase.table("model_comparison").delete().eq("song_id", song_id).execute()
+    )
+    return (len(evals_deleted.data) if evals_deleted.data else 0) + (
+        len(comparisons_deleted.data) if comparisons_deleted.data else 0
+    )
 
 
 def guardar_en_supabase(
@@ -145,17 +152,15 @@ def guardar_en_supabase(
 
     id_eval = eval_result.data[0]["id"]
 
-    def diff(dim: str) -> int:
-        return abs(get_score(dim))
-
     supabase.table("model_comparison").insert(
         {
             "song_id": song_id,
             "evaluation_model_b_id": id_eval,
-            "diff_score_objectification": diff("Objetificación Sexual"),
-            "diff_score_roles": diff("Sumisión / Roles de Género"),
-            "diff_score_possession": diff("Celos / Control"),
-            "diff_score_degrading": diff("Insultos / Lenguaje Degradante"),
+            # Single-model pipeline: no model-vs-model delta is available.
+            "diff_score_objectification": 0,
+            "diff_score_roles": 0,
+            "diff_score_possession": 0,
+            "diff_score_degrading": 0,
             "full_agreement": len(resultado.get("dimensiones_discrepantes", [])) == 0,
             "cohen_kappa": resultado.get("acuerdo_kendall_tau"),
         }

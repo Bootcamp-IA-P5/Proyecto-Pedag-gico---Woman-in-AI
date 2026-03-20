@@ -36,8 +36,30 @@ DEFAULT_PROVIDER_ORDER = [
     for p in os.getenv("LLM_PROVIDER_ORDER", "github,openrouter").split(",")
     if p.strip()
 ]
+
+
+def _parse_concurrency_limit() -> int:
+    raw = os.getenv("LLM_CONCURRENCY_LIMIT", "1")
+    try:
+        parsed = int(raw)
+    except ValueError:
+        log.warning(
+            "LLM_CONCURRENCY_LIMIT invalido '%s'; usando 1 para evitar bloqueo.",
+            raw,
+        )
+        return 1
+
+    if parsed < 1:
+        log.warning(
+            "LLM_CONCURRENCY_LIMIT=%s no es valido; clamped a 1 para evitar bloqueo.",
+            parsed,
+        )
+        return 1
+    return parsed
+
+
 # ── limitador de concurrencia global para llamadas a LLM ──
-LLM_CONCURRENCY_LIMIT = int(os.getenv("LLM_CONCURRENCY_LIMIT", 1))
+LLM_CONCURRENCY_LIMIT = _parse_concurrency_limit()
 _llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY_LIMIT)
 
 

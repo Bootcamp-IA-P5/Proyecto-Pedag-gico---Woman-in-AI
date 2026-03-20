@@ -11,7 +11,7 @@ from app.pipeline.two_stage_common import (
     configure_logger,
     default_artifact_path,
     fetch_song_bundle,
-    list_target_song_ids,
+    list_target_song_ids_async,
     nivel_global,
 )
 
@@ -90,7 +90,7 @@ async def procesar_song(song_id: int, timeout_seconds: int, logger) -> dict:
 async def main(args: argparse.Namespace) -> None:
     logger, log_path = configure_logger("stage1_dimensions")
     output_path = Path(args.output) if args.output else default_artifact_path("stage1")
-    targets = list_target_song_ids(args.limit, args.song_ids)
+    targets = await list_target_song_ids_async(args.limit, args.song_ids)
 
     logger.info(f"Stage 1 -> canciones objetivo: {len(targets)}")
     for song_id in targets:

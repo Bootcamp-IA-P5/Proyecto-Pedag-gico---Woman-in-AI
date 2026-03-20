@@ -67,6 +67,12 @@ def list_target_song_ids(limit: int, song_ids: list[int] | None = None) -> list[
     return [row["song_id"] for row in (rows.data or [])]
 
 
+async def list_target_song_ids_async(
+    limit: int, song_ids: list[int] | None = None
+) -> list[int]:
+    return await asyncio.to_thread(list_target_song_ids, limit, song_ids)
+
+
 def fetch_song(song_id: int):
     return supabase.table("songs").select("*").eq("id", song_id).single().execute()
 

@@ -1,12 +1,7 @@
 # backend/app/agents/judge_agent.py
-import os
 import json
-import httpx
 from langfuse.decorators import observe, langfuse_context
-
-JUEZ_URL   = "https://openrouter.ai/api/v1/chat/completions"
-JUEZ_KEY   = os.getenv("OPEN_ROUTER_KEY")
-JUEZ_MODEL = "x-ai/grok-4.20-multi-agent-beta"  # o "google/gemini-2.5-flash"
+from app.agents.base_agent import call_model_json
 
 SYSTEM_PROMPT_JUEZ = """Eres un juez experto en análisis de sesgos de género 
 en canciones en español.
@@ -64,62 +59,41 @@ Emite tu veredicto."""
         ]
         
         langfuse_context.update_current_observation(
-            model=JUEZ_MODEL,
             input=messages_payload,
             metadata={"dimension": resultado_modelo.get('dimension')}
         )
 
-        if not JUEZ_KEY:
-            error_msg = "OPEN_ROUTER_KEY no configurada para el Juez"
-            langfuse_context.update_current_observation(level="ERROR", status_message=error_msg)
-            raise ValueError(error_msg)
-
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(
-                    JUEZ_URL,
-                    headers={
-                        "Authorization": f"Bearer {JUEZ_KEY}",
-                        "Content-Type":  "application/json",
-                    },
-                    json={
-                        "model":       JUEZ_MODEL,
-                        "temperature": 0,
-                        "max_tokens":  1024,
-                        "messages": messages_payload,
-                    }
-                )
-                response.raise_for_status()
-
-            resp_json = response.json()
-            raw = resp_json["choices"][0]["message"]["content"].strip()
-            usage_data = resp_json.get("usage", {})
-            usage = {
-                "input": usage_data.get("prompt_tokens", 0),
-                "output": usage_data.get("completion_tokens", 0)
-            }
-
-            try:
-                veredicto = json.loads(raw)
-            except json.JSONDecodeError:
-                raw_clean = raw.replace("```json", "").replace("```", "").strip()
-                veredicto = json.loads(raw_clean)
-                
+            # Usando la máquina principal de forma resiliente
+            veredicto, prov_usado, modelo_usado = await call_model_json(
+                system_prompt=SYSTEM_PROMPT_JUEZ,
+                user_message=user_message,
+                provider_order=["openrouter"],
+                temperature=0.0,
+                context_label="Juez Final",
+            )
+            
             langfuse_context.update_current_observation(
-                usage_details=usage,
+                model=modelo_usado,
                 output=veredicto
             )
             return veredicto
 
         except Exception as e:
-            # Fallback en caso de que el Juez falle
-            p_modelo = resultado_modelo.get("puntuacion", 0)
+            # Fallback en caso de que el Juez falle: usamos la puntuacion revisada (o la original si no hay revisada)
+            p_revisada = revision_critica.get("puntuacion_revisada", resultado_modelo.get("puntuacion", 0))
             fallback_res  = {
                 "dimension":          resultado_modelo.get("dimension"),
-                "evaluacion_openrouter":  {"fragmentos_validos": True, "puntuacion_justificada": True, "puntuacion_sugerida": None, "razonamiento": f"Juez no disponible: {str(e)}"},
-                "puntuacion_final":   p_modelo,
+                "evaluacion_openrouter":  {
+                    "fragmentos_validos": True, 
+                    "puntuacion_justificada": True, 
+                    "puntuacion_sugerida": None, 
+                    "razonamiento": f"Juez no disponible: {str(e)}"
+                },                                                                           
+                "puntuacion_final":   p_revisada,
                 "hay_discrepancia":   False,
                 "error":              str(e),
             }
             langfuse_context.update_current_observation(output=fallback_res, level="ERROR", status_message=str(e))
+            return fallback_res
             return fallback_res

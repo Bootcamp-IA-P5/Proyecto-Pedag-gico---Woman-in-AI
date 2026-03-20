@@ -214,12 +214,13 @@ async def analizar_por_id(song_id: int):
     # LO NUEVO: Fase 2 - Renombrar la traza en Langfuse para saber qué canción es
     titulo_cancion = cancion.data.get("title", "Desconocido")
     artista_cancion = cancion.data.get("artist", "Desconocido")
-    langfuse_context.update_current_trace(
-        name=f"Analisis: {artista_cancion} - {titulo_cancion}",
-        session_id=f"sesion_{song_id}",
-        user_id="usuario_api",
-        tags=["analisis_db"]
-    )
+    if langfuse_context.get_current_trace_id():
+        langfuse_context.update_current_trace(
+            name=f"Analisis: {artista_cancion} - {titulo_cancion}",
+            session_id=f"sesion_{song_id}",
+            user_id="usuario_api",
+            tags=["analisis_db"]
+        )
 
     letra_row = (
         supabase.table("lyrics").select("*").eq("song_id", song_id).single().execute()

@@ -4,7 +4,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-
+from langfuse.decorators import observe, langfuse_context
 from app.src.analysis.graph import analizar_cancion
 from app.src.config.supabase_client import supabase
 
@@ -128,6 +128,44 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
     )
 
 
+def registrar_scores_langfuse(resultado: dict):
+    if not langfuse_context.get_current_trace_id():
+        return
+
+    # Extraer de forma segura y clamp/mantener decimales si existen
+    puntuacion_global = resultado.get("puntuacion_global", 0)
+    try:
+        puntuacion_global = float(puntuacion_global) if puntuacion_global is not None else 0.0
+    except ValueError:
+        puntuacion_global = 0.0
+
+    nivel_global = resultado.get("nivel_global", "")
+    
+    langfuse_context.score_current_trace(
+        name="puntuacion_sesgo_global",
+        value=puntuacion_global,
+        comment=f"Nivel: {nivel_global}"
+    )
+    
+    for dim in resultado.get("dimensiones", []):
+        nombre_dim = dim.get("dimension")
+        puntos_dim = dim.get("puntuacion", dim.get("puntuacion_final", 0))
+        
+        try:
+            puntos_dim = float(puntos_dim) if puntos_dim is not None else 0.0
+        except ValueError:
+            puntos_dim = 0.0
+            
+        # Clampeamos al rango normalizado de 0 a 3 como buena práctica de scoring
+        puntos_dim = max(0.0, min(3.0, puntos_dim))
+
+        if nombre_dim:
+            langfuse_context.score_current_trace(
+                name=f"score_dim_{nombre_dim.lower().replace(' ', '_').replace('/', '_')}",
+                value=puntos_dim
+            )
+
+
 class LyricInput(BaseModel):
     titulo: str
     artista: str
@@ -145,26 +183,44 @@ class BatchInput(BaseModel):
 
 
 @router.post("/lyrics")
+@observe()
 async def analizar_letra_nueva(input: LyricInput):
     if len(input.letra.strip()) < 50:
         raise HTTPException(
             status_code=400,
             detail="La letra es demasiado corta para analizarla",
         )
-    return await analizar_cancion(
+    resultado = await analizar_cancion(
         song_id="manual",
         titulo=input.titulo,
         artista=input.artista,
         genero_musical=input.genero_musical,
         letra=input.letra,
     )
+    
+    # Fase 3: Registrar scores síncrono antes de devolver, dentro del @observe
+    registrar_scores_langfuse(resultado)
+    
+    return resultado
 
 
 @router.post("/song/{song_id}")
+@observe()
 async def analizar_por_id(song_id: int):
     cancion = supabase.table("songs").select("*").eq("id", song_id).single().execute()
     if not cancion.data:
         raise HTTPException(status_code=404, detail="Cancion no encontrada")
+
+    # LO NUEVO: Fase 2 - Renombrar la traza en Langfuse para saber qué canción es
+    titulo_cancion = cancion.data.get("title", "Desconocido")
+    artista_cancion = cancion.data.get("artist", "Desconocido")
+    if langfuse_context.get_current_trace_id():
+        langfuse_context.update_current_trace(
+            name=f"Analisis: {artista_cancion} - {titulo_cancion}",
+            session_id=f"sesion_{song_id}",
+            user_id="usuario_api",
+            tags=["analisis_db"]
+        )
 
     letra_row = (
         supabase.table("lyrics").select("*").eq("song_id", song_id).single().execute()
@@ -180,6 +236,10 @@ async def analizar_por_id(song_id: int):
         letra=letra_row.data["lyrics_text"],
     )
 
+    # Fase 3: Registrar scores síncrono antes del threadpool, dentro del @observe
+    registrar_scores_langfuse(resultado)
+
+    # 4. Guardar (ejecutar escritura síncrona en un threadpool para no bloquear el event loop)
     await run_in_threadpool(
         guardar_en_supabase,
         song_id=song_id,

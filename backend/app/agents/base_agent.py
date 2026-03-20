@@ -8,6 +8,8 @@ from abc import ABC
 
 import httpx
 from dotenv import load_dotenv
+from langfuse.decorators import observe, langfuse_context
+
 
 load_dotenv()
 
@@ -91,6 +93,7 @@ class BaseAgent(ABC):
     dimension: str = ""
     system_prompt: str = ""
 
+    @observe(as_type="generation")
     async def analizar(self, letra: str, proveedor: str | None = None) -> dict:
         user_message = f"""Analiza la siguiente letra de canción en español \
 y devuelve ÚNICAMENTE un JSON válido, sin texto adicional ni bloques markdown.
@@ -114,19 +117,42 @@ Recuerda:
 - fragmentos debe estar vacío ([]) si puntuacion es 0
 - Cita los fragmentos exactamente como aparecen en la letra"""
 
-        provider_order = [proveedor] if proveedor else DEFAULT_PROVIDER_ORDER
-        resultado, provider_name, model_name = await call_model_json(
-            system_prompt=self.system_prompt,
-            user_message=user_message,
-            provider_order=provider_order,
-            temperature=0.1,
-            max_tokens=1024,
-            context_label=self.dimension,
+        messages_payload = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user",   "content": user_message},
+        ]
+        
+        provider_order = [proveedor] if proveedor else None
+
+        langfuse_context.update_current_observation(
+            input=messages_payload,
+            metadata={"dimension": self.dimension}
         )
 
+        try:
+            resultado, prov_usado, modelo_usado = await call_model_json(
+                system_prompt=self.system_prompt,
+                user_message=user_message,
+                provider_order=provider_order,
+                context_label=f"Analisis {self.dimension}",
+            )
+        except Exception as error_api:
+            langfuse_context.update_current_observation(
+                level="ERROR",
+                status_message=f"Fallo en llamada a LLM: {str(error_api)}"
+            )
+            raise error_api
+
+        # call_model_json (via _call_provider_json) ya nos devuelve el dict
         validado = self._validar(resultado)
-        validado["proveedor"] = provider_name
-        validado["modelo"] = model_name
+        validado["modelo"] = f"{prov_usado}/{modelo_usado}"
+        
+        langfuse_context.update_current_observation(
+            model=modelo_usado,
+            output=validado,
+            metadata={"proveedor_final": prov_usado, "dimension": self.dimension}
+        )
+        
         return validado
 
     def _validar(self, resultado: dict) -> dict:
@@ -250,7 +276,21 @@ async def _call_provider_json(
                 response.raise_for_status()
 
             response.raise_for_status()
-            raw = _extract_choice_content(response.json())
+            
+            resp_json = response.json()
+            raw = _extract_choice_content(resp_json)
+            
+            # Extraer uso de tokens para Langfuse si hay contexto activo
+            usage_data = resp_json.get("usage", {})
+            if usage_data:
+                usage = {
+                    "input": usage_data.get("prompt_tokens", 0),
+                    "output": usage_data.get("completion_tokens", 0),
+                    "total": usage_data.get("total_tokens", 0)
+                }
+                if langfuse_context.get_current_trace_id():
+                    langfuse_context.update_current_observation(usage_details=usage)
+
             return _extract_json_object(raw)
 
         except (

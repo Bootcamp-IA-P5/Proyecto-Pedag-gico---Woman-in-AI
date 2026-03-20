@@ -1,6 +1,7 @@
 # backend/app/agents/judge_agent.py
 import json
-from .base_agent import call_model_json
+from langfuse.decorators import observe, langfuse_context
+from app.agents.base_agent import call_model_json
 
 SYSTEM_PROMPT_JUEZ = """Eres un juez experto en análisis de sesgos de género 
 en canciones en español.
@@ -34,6 +35,8 @@ REGLA: puntuacion_sugerida es null si la puntuación está bien."""
 
 
 class JudgeAgent:
+
+    @observe(as_type="generation")
     async def juzgar(
         self, letra: str, resultado_modelo: dict, revision_critica: dict
     ) -> dict:
@@ -50,32 +53,46 @@ REVISION CRITICA:
 
 Emite tu veredicto."""
 
+        messages_payload = [
+            {"role": "system", "content": SYSTEM_PROMPT_JUEZ},
+            {"role": "user",   "content": user_message},
+        ]
+        
+        langfuse_context.update_current_observation(
+            input=messages_payload,
+            metadata={"dimension": resultado_modelo.get('dimension')}
+        )
+
         try:
-            payload, provider_name, model_name = await call_model_json(
+            # Usando la máquina principal de forma resiliente
+            veredicto, prov_usado, modelo_usado = await call_model_json(
                 system_prompt=SYSTEM_PROMPT_JUEZ,
                 user_message=user_message,
-                provider_order=None,
-                temperature=0,
-                max_tokens=900,
-                context_label=f"juez:{resultado_modelo.get('dimension', 'N/A')}",
+                provider_order=["openrouter"],
+                temperature=0.0,
+                context_label="Juez Final",
             )
-            payload["proveedor_juez"] = provider_name
-            payload["modelo_juez"] = model_name
-            return payload
+            
+            langfuse_context.update_current_observation(
+                model=modelo_usado,
+                output=veredicto
+            )
+            return veredicto
 
         except Exception as e:
-            p_critica = revision_critica.get(
-                "puntuacion_revisada", resultado_modelo.get("puntuacion", 0)
-            )
-            return {
-                "dimension": resultado_modelo.get("dimension"),
-                "evaluacion_openrouter": {
-                    "fragmentos_validos": True,
-                    "puntuacion_justificada": True,
-                    "puntuacion_sugerida": None,
-                    "razonamiento": f"Juez no disponible: {str(e)}",
-                },
-                "puntuacion_final": p_critica,
-                "hay_discrepancia": False,
-                "error": str(e),
+            # Fallback en caso de que el Juez falle: usamos la puntuacion revisada (o la original si no hay revisada)
+            p_revisada = revision_critica.get("puntuacion_revisada", resultado_modelo.get("puntuacion", 0))
+            fallback_res  = {
+                "dimension":          resultado_modelo.get("dimension"),
+                "evaluacion_openrouter":  {
+                    "fragmentos_validos": True, 
+                    "puntuacion_justificada": True, 
+                    "puntuacion_sugerida": None, 
+                    "razonamiento": f"Juez no disponible: {str(e)}"
+                },                                                                           
+                "puntuacion_final":   p_revisada,
+                "hay_discrepancia":   False,
+                "error":              str(e),
             }
+            langfuse_context.update_current_observation(output=fallback_res, level="ERROR", status_message=str(e))
+            return fallback_res

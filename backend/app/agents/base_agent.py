@@ -94,18 +94,7 @@ class BaseAgent(ABC):
     system_prompt: str = ""
 
     @observe(as_type="generation")
-    async def analizar(self, letra: str, proveedor: str = "openrouter") -> dict:
-        config = PROVEEDORES.get(proveedor)
-        if not config:
-            raise ValueError(f"Proveedor desconocido: {proveedor}")
-        required_keys = ("url", "key", "model")
-        missing = [k for k in required_keys if not config.get(k)]
-        if missing:
-            raise ValueError(
-                f"Configuración incompleta para el proveedor '{proveedor}': "
-                f"faltan {', '.join(missing)}. Revisa las variables de entorno correspondientes."
-            )
-
+    async def analizar(self, letra: str, proveedor: str | None = None) -> dict:
         user_message = f"""Analiza la siguiente letra de canción en español \
 y devuelve ÚNICAMENTE un JSON válido, sin texto adicional ni bloques markdown.
 
@@ -132,68 +121,36 @@ Recuerda:
             {"role": "system", "content": self.system_prompt},
             {"role": "user",   "content": user_message},
         ]
+        
+        provider_order = [proveedor] if proveedor else None
+
         langfuse_context.update_current_observation(
-            model=config["model"],
             input=messages_payload,
-            metadata={"proveedor": proveedor, "dimension": self.dimension}
+            metadata={"dimension": self.dimension}
         )
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            try:
-                response = await client.post(
-                    config["url"],
-                    headers={
-                        "Authorization": f"Bearer {config['key']}",
-                        "Content-Type":  "application/json",
-                    },
-                    json={
-                        "model":       config["model"],
-                        "temperature": 0.1,
-                        "max_tokens":  1024,
-                        "messages": messages_payload,
-                    }
-                )
-                response.raise_for_status()
-
-            except Exception as error_api:
-                # Si Groq u OpenRouter fallan, informamos a Langfuse y relanzamos el error
-                langfuse_context.update_current_observation(
-                    level="ERROR",
-                    status_message=f"Fallo en la API de {proveedor}: {str(error_api)}"
-                )
-                raise error_api
-
-        resp_json = response.json()
-        raw = resp_json["choices"][0]["message"]["content"].strip()
-        usage_data = resp_json.get("usage", {})
-        
-        # Guardar en Langfuse el costo en tokens y pasar obj de output
-        usage = {
-            "input": usage_data.get("prompt_tokens", 0),
-            "output": usage_data.get("completion_tokens", 0),
-            "total": usage_data.get("total_tokens", 0)
-        }
-
         try:
-            resultado = json.loads(raw)
-        except json.JSONDecodeError:
-            try:
-                raw_clean = raw.replace("```json", "").replace("```", "").strip()
-                resultado = json.loads(raw_clean)
-            except json.JSONDecodeError as e_inner:
-                # Si el modelo alucina y no devuelve un JSON válido
-                langfuse_context.update_current_observation(
-                    level="ERROR",
-                    status_message=f"El modelo no devolvió un JSON válido: {str(e_inner)}"
-                )
-                raise e_inner
+            resultado, prov_usado, modelo_usado = await call_model_json(
+                system_prompt=self.system_prompt,
+                user_message=user_message,
+                provider_order=provider_order,
+                context_label=f"Analisis {self.dimension}",
+            )
+        except Exception as error_api:
+            langfuse_context.update_current_observation(
+                level="ERROR",
+                status_message=f"Fallo en llamada a LLM: {str(error_api)}"
+            )
+            raise error_api
 
+        # call_model_json (via _call_provider_json) ya nos devuelve el dict
         validado = self._validar(resultado)
-        validado["modelo"] = f"{proveedor}/{config['model']}"
+        validado["modelo"] = f"{prov_usado}/{modelo_usado}"
         
         langfuse_context.update_current_observation(
-            usage_details=usage,
-            output=validado
+            model=modelo_usado,
+            output=validado,
+            metadata={"proveedor_final": prov_usado, "dimension": self.dimension}
         )
         
         return validado
@@ -319,7 +276,21 @@ async def _call_provider_json(
                 response.raise_for_status()
 
             response.raise_for_status()
-            raw = _extract_choice_content(response.json())
+            
+            resp_json = response.json()
+            raw = _extract_choice_content(resp_json)
+            
+            # Extraer uso de tokens para Langfuse si hay contexto activo
+            usage_data = resp_json.get("usage", {})
+            if usage_data:
+                usage = {
+                    "input": usage_data.get("prompt_tokens", 0),
+                    "output": usage_data.get("completion_tokens", 0),
+                    "total": usage_data.get("total_tokens", 0)
+                }
+                if langfuse_context.get_current_trace_id():
+                    langfuse_context.update_current_observation(usage_details=usage)
+
             return _extract_json_object(raw)
 
         except (

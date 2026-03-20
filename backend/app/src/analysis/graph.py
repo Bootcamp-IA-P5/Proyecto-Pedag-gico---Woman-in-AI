@@ -5,12 +5,10 @@ import re
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
 from langfuse.decorators import observe
-from langfuse import Langfuse
 from app.src.analysis.state import AnalysisState
 from app.agents.reporter_agent import ReporterAgent
 
 load_dotenv()
-langfuse = Langfuse()
 
 reporter = ReporterAgent()
 MAX_LYRIC_CHARS = int(os.getenv("ANALYSIS_MAX_LYRIC_CHARS", "12000"))
@@ -165,12 +163,14 @@ async def analizar_cancion(
         "resultado_final": None,
     }
 
-    # Se llama a langfuse.trace para registrar la ejecución en el contexto global
-    langfuse.trace(
-        name="analizar_cancion",
-        session_id=f"cancion_{song_id}",
-        tags=["analisis_langgraph"],
-        metadata={"titulo": titulo, "artista": artista, "genero_musical": genero_musical},
-    )
+    from langfuse.decorators import langfuse_context
+    
+    # Se actualizan tags y metadatos extras usando el decorador que viene de las rutas
+    if langfuse_context.get_current_trace_id():
+        langfuse_context.update_current_trace(
+            tags=["analisis_langgraph"],
+            metadata={"titulo": titulo, "artista": artista, "genero_musical": genero_musical},
+        )
+    
     estado_final = await grafo_vertice.ainvoke(estado_inicial)
     return estado_final["resultado_final"]

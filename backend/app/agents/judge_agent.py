@@ -69,6 +69,11 @@ Emite tu veredicto."""
             metadata={"dimension": resultado_modelo.get('dimension')}
         )
 
+        if not JUEZ_KEY:
+            error_msg = "OPEN_ROUTER_KEY no configurada para el Juez"
+            langfuse_context.update_current_observation(level="ERROR", status_message=error_msg)
+            raise ValueError(error_msg)
+
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(

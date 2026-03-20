@@ -32,6 +32,9 @@ ARTISTAS_EXTRA = [
     "shakira", "maluma", "duki"
 ]
 
+ANIOS_PERMITIDOS = {2023, 2024, 2025, 2026}
+IDIOMAS_ESPANOL_VALIDOS = {"es", "españa", "latam"}
+
 
 def generar_hash(texto: str) -> str:
     """Genera hash único de la letra para evitar guardar duplicados."""
@@ -128,7 +131,7 @@ def obtener_canciones_del_artista(slug: str, session) -> list:
 
 
 def validar_anio(artist: str, title: str) -> tuple[bool, int]:
-    """Valida con MusicBrainz el año de la canción (informativo)."""
+    """Solo permite canciones con año 2023-2026 según MusicBrainz."""
     try:
         resultado = musicbrainzngs.search_recordings(recording=title, artist=artist, limit=5)
         recordings = resultado.get("recording-list", [])
@@ -137,10 +140,12 @@ def validar_anio(artist: str, title: str) -> tuple[bool, int]:
                 fecha = release.get("date", "")
                 if fecha and len(fecha) >= 4:
                     anio = int(fecha[:4])
-                    return True, anio
+                    if anio in ANIOS_PERMITIDOS:
+                        return True, anio
+                    return False, anio
     except Exception:
         pass
-    return True, 0
+    return False, 0
 
 
 def scrape_lyrics(url: str, session) -> str | None:
@@ -172,10 +177,10 @@ def scrape_lyrics(url: str, session) -> str | None:
 
 
 def validar_idioma(texto: str) -> tuple[bool, str]:
-    """Solo acepta español."""
+    """Solo acepta español (es/españa/latam)."""
     try:
-        idioma = detect(texto[:500])
-        if idioma == "es":
+        idioma = detect(texto[:500]).lower()
+        if idioma in IDIOMAS_ESPANOL_VALIDOS:
             return True, idioma
         return False, idioma
     except LangDetectException:
@@ -212,16 +217,19 @@ def guardar_cancion(supabase, artista: str, titulo: str, letra_cruda: str, anio:
     """Aplica normalización analítica y la guarda en la tabla lyrics, vinculada a songs."""
     
     # 1. Aseguramos que la canción exista en la tabla 'songs'
-    res_song = supabase.table("songs").select("id").eq("artist", artista).eq("title", titulo).execute()
+    res_song = supabase.table("songs").select("id, year").eq("artist", artista).eq("title", titulo).execute()
     
     if res_song.data:
         song_id = res_song.data[0]["id"]
+        year_actual = res_song.data[0].get("year")
+        if anio in ANIOS_PERMITIDOS and anio != year_actual:
+            supabase.table("songs").update({"year": anio}).eq("id", song_id).execute()
     else:
         # Creamos la canción si no existe
         res_insert = supabase.table("songs").insert({
             "artist": artista,
             "title": titulo,
-            "year": anio,
+            "year": anio if anio in ANIOS_PERMITIDOS else None,
             "lyrics_status": "pending"
         }).execute()
         if not res_insert.data:

@@ -1,44 +1,97 @@
 # backend/app/agents/base_agent.py
-import os
+import asyncio
 import json
-import httpx
+import logging
+import os
+import re
 from abc import ABC
-from dotenv import load_dotenv
 
+import httpx
+from dotenv import load_dotenv
 
 load_dotenv()
 
+log = logging.getLogger(__name__)
+
 PROVEEDORES = {
-    "groq": {
-        "url":   "https://api.groq.com/openai/v1/chat/completions",
-        "key":   os.getenv("GROQ_API_KEY"),
-        "model": "llama-3.3-70b-versatile",
+    "together": {
+        "url": os.getenv(
+            "TOGETHER_URL",
+            "https://api.together.xyz/v1/chat/completions",
+        ),
+        "key": os.getenv("TOGETHER_API_KEY"),
+        "model": os.getenv(
+            "TOGETHER_MODEL",
+            "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        ),
+    },
+    "compat": {
+        "url": os.getenv("COMPAT_LLM_URL"),
+        "key": os.getenv("COMPAT_LLM_KEY"),
+        "model": os.getenv("COMPAT_LLM_MODEL"),
+    },
+    "github": {
+        "url": os.getenv(
+            "GITHUB_MODELS_URL",
+            "https://models.inference.ai.azure.com/chat/completions",
+        ),
+        "key": os.getenv("GITHUB_MODELS_KEY") or os.getenv("GITHUB_TOKEN"),
+        "model": os.getenv("GITHUB_MODELS_MODEL", "deepseek-r1"),
     },
     "openrouter": {
-        "url":   os.getenv("OPEN_ROUTER_URL"),
-        "key":   os.getenv("OPEN_ROUTER_KEY"),
-        "model": os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.5-flash"),
+        "url": os.getenv(
+            "OPEN_ROUTER_URL",
+            "https://openrouter.ai/api/v1/chat/completions",
+        ),
+        "key": os.getenv("OPEN_ROUTER_KEY"),
+        "model": os.getenv("OPEN_ROUTER_MODEL", "openrouter/auto"),
     },
 }
+DEFAULT_PROVIDER_ORDER = [
+    p.strip()
+    for p in os.getenv(
+        "LLM_PROVIDER_ORDER", "together,compat,openrouter,github"
+    ).split(",")
+    if p.strip()
+]
+
+
+def _parse_concurrency_limit() -> int:
+    raw = os.getenv("LLM_CONCURRENCY_LIMIT", "1")
+    try:
+        parsed = int(raw)
+    except ValueError:
+        log.warning(
+            "LLM_CONCURRENCY_LIMIT invalido '%s'; usando 1 para evitar bloqueo.",
+            raw,
+        )
+        return 1
+
+    if parsed < 1:
+        log.warning(
+            "LLM_CONCURRENCY_LIMIT=%s no es valido; clamped a 1 para evitar bloqueo.",
+            parsed,
+        )
+        return 1
+    return parsed
+
+
+# ── limitador de concurrencia global para llamadas a LLM ──
+LLM_CONCURRENCY_LIMIT = _parse_concurrency_limit()
+_llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY_LIMIT)
+
+
+# ── Configuración de reintentos ────────────────────────────────────────────────
+MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
+RETRY_BASE = float(os.getenv("LLM_RETRY_BASE", "2.0"))
+RETRY_ON_CODES = {429, 500, 502, 503, 504}  # códigos que disparan reintento
 
 
 class BaseAgent(ABC):
-
     dimension: str = ""
     system_prompt: str = ""
 
-    async def analizar(self, letra: str, proveedor: str = "groq") -> dict:
-        config = PROVEEDORES.get(proveedor)
-        if not config:
-            raise ValueError(f"Proveedor desconocido: {proveedor}")
-        required_keys = ("url", "key", "model")
-        missing = [k for k in required_keys if not config.get(k)]
-        if missing:
-            raise ValueError(
-                f"Configuración incompleta para el proveedor '{proveedor}': "
-                f"faltan {', '.join(missing)}. Revisa las variables de entorno correspondientes."
-            )
-
+    async def analizar(self, letra: str, proveedor: str | None = None) -> dict:
         user_message = f"""Analiza la siguiente letra de canción en español \
 y devuelve ÚNICAMENTE un JSON válido, sin texto adicional ni bloques markdown.
 
@@ -61,41 +114,216 @@ Recuerda:
 - fragmentos debe estar vacío ([]) si puntuacion es 0
 - Cita los fragmentos exactamente como aparecen en la letra"""
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                config["url"],
-                headers={
-                    "Authorization": f"Bearer {config['key']}",
-                    "Content-Type":  "application/json",
-                },
-                json={
-                    "model":       config["model"],
-                    "temperature": 0.1,
-                    "max_tokens":  1024,
-                    "messages": [
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user",   "content": user_message},
-                    ],
-                }
-            )
-            response.raise_for_status()
-
-        raw = response.json()["choices"][0]["message"]["content"].strip()
-
-        try:
-            resultado = json.loads(raw)
-        except json.JSONDecodeError:
-            raw_clean = raw.replace("```json", "").replace("```", "").strip()
-            resultado = json.loads(raw_clean)
+        provider_order = [proveedor] if proveedor else DEFAULT_PROVIDER_ORDER
+        resultado, provider_name, model_name = await call_model_json(
+            system_prompt=self.system_prompt,
+            user_message=user_message,
+            provider_order=provider_order,
+            temperature=0.1,
+            max_tokens=1024,
+            context_label=self.dimension,
+        )
 
         validado = self._validar(resultado)
-        validado["modelo"] = f"{proveedor}/{config['model']}"
+        validado["proveedor"] = provider_name
+        validado["modelo"] = model_name
         return validado
 
     def _validar(self, resultado: dict) -> dict:
         return {
-            "dimension":     resultado.get("dimension",     self.dimension),
-            "puntuacion":    max(0, min(3, int(resultado.get("puntuacion", 0)))),
-            "fragmentos":    resultado.get("fragmentos",    []),
+            "dimension": resultado.get("dimension", self.dimension),
+            "puntuacion": max(0, min(3, int(resultado.get("puntuacion", 0)))),
+            "fragmentos": resultado.get("fragmentos", []),
             "justificacion": resultado.get("justificacion", ""),
         }
+
+
+def _clean_json_text(raw: str | dict | list | None) -> str:
+    if raw is None:
+        raise ValueError("Respuesta vacia del modelo (content=None)")
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, ensure_ascii=False)
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.replace("```json", "").replace("```", "").strip()
+    return raw
+
+
+def _extract_json_object(raw: str) -> dict:
+    cleaned = _clean_json_text(raw)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if not match:
+            raise
+        return json.loads(match.group(0))
+
+
+def _extract_choice_content(response_json: dict) -> str | dict | list | None:
+    choices = response_json.get("choices") or []
+    if not choices:
+        raise ValueError("Respuesta del proveedor sin 'choices'")
+
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+
+    # Some providers return content as a list of typed blocks.
+    if isinstance(content, list):
+        text_blocks: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                block_text = block.get("text") or block.get("content")
+                if block_text:
+                    text_blocks.append(str(block_text))
+            elif isinstance(block, str):
+                text_blocks.append(block)
+        if text_blocks:
+            return "\n".join(text_blocks)
+
+    return content
+
+
+def _validate_provider_config(provider_name: str) -> dict:
+    config = PROVEEDORES.get(provider_name)
+    if not config:
+        raise ValueError(f"Proveedor desconocido: {provider_name}")
+
+    missing = [k for k in ("url", "key", "model") if not config.get(k)]
+    if missing:
+        raise ValueError(
+            f"Configuración incompleta para '{provider_name}': "
+            f"faltan {', '.join(missing)}"
+        )
+    return config
+
+
+async def _call_provider_json(
+    provider_name: str,
+    config: dict,
+    system_prompt: str,
+    user_message: str,
+    temperature: float,
+    max_tokens: int,
+    context_label: str,
+) -> dict:
+    ultimo_error = None
+
+    for intento in range(1, MAX_RETRIES + 1):
+        try:
+            async with _llm_semaphore:
+                async with httpx.AsyncClient(timeout=float(os.getenv("LLM_TIMEOUT_SECONDS", "8"))) as client:
+                    response = await client.post(
+                        config["url"],
+                        headers={
+                            "Authorization": f"Bearer {config['key']}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": config["model"],
+                            "temperature": temperature,
+                            "max_tokens": max_tokens,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_message},
+                            ],
+                        },
+                    )
+
+            if response.status_code == 402:
+                raise httpx.HTTPStatusError(
+                    f"402 Payment Required en {provider_name}",
+                    request=response.request,
+                    response=response,
+                )
+
+            if response.status_code in RETRY_ON_CODES:
+                if intento < MAX_RETRIES:
+                    wait = RETRY_BASE**intento
+                    log.warning(
+                        f"[{provider_name}] {context_label} -> HTTP {response.status_code} "
+                        f"(intento {intento}/{MAX_RETRIES}), reintento en {wait:.1f}s"
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                response.raise_for_status()
+
+            response.raise_for_status()
+            raw = _extract_choice_content(response.json())
+            return _extract_json_object(raw)
+
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.HTTPStatusError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as e:
+            ultimo_error = e
+            if isinstance(e, httpx.HTTPStatusError):
+                status = e.response.status_code
+                # 4xx (except 429) are usually request/config issues; retrying does not help.
+                if status == 402 or (400 <= status < 500 and status != 429):
+                    detail = (e.response.text or "")[:400]
+                    raise RuntimeError(
+                        f"[{provider_name}] {context_label} fallo con HTTP {status}. "
+                        f"Detalle: {detail}"
+                    ) from e
+            if intento < MAX_RETRIES:
+                wait = RETRY_BASE**intento
+                log.warning(
+                    f"[{provider_name}] {context_label} -> error {type(e).__name__} "
+                    f"(intento {intento}/{MAX_RETRIES}), reintento en {wait:.1f}s"
+                )
+                await asyncio.sleep(wait)
+
+    raise RuntimeError(
+        f"[{provider_name}] {context_label} falló tras {MAX_RETRIES} intentos. "
+        f"Último error: {ultimo_error}"
+    )
+
+
+async def call_model_json(
+    system_prompt: str,
+    user_message: str,
+    provider_order: list[str] | None = None,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+    context_label: str = "llm-call",
+) -> tuple[dict, str, str]:
+    requested = provider_order or DEFAULT_PROVIDER_ORDER
+    providers = [p for p in requested if p in PROVEEDORES]
+    unknown = [p for p in requested if p not in PROVEEDORES]
+    if unknown:
+        log.warning("Proveedores ignorados (no implementados): %s", ", ".join(unknown))
+
+    if not providers:
+        raise RuntimeError(
+            "No hay proveedores validos configurados. "
+            "Revisa LLM_PROVIDER_ORDER y las claves disponibles."
+        )
+
+    errors: list[str] = []
+
+    for provider_name in providers:
+        try:
+            config = _validate_provider_config(provider_name)
+            payload = await _call_provider_json(
+                provider_name=provider_name,
+                config=config,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                context_label=context_label,
+            )
+            return payload, provider_name, config["model"]
+        except Exception as e:
+            errors.append(f"{provider_name}: {e}")
+            log.warning(f"Fallo en proveedor {provider_name} ({context_label}): {e}")
+
+    raise RuntimeError(
+        f"Todos los proveedores fallaron para '{context_label}'. "
+        f"Detalle: {' | '.join(errors)}"
+    )

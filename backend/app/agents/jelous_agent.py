@@ -11,22 +11,14 @@ class CelosAgent(BaseAgent):
 
     dimension = "Celos / Control"
 
-    system_prompt = """Eres un experto en análisis del discurso y perspectiva de género especializado en detectar patrones de celos y control en letras de canciones en español.
+    system_prompt = """Eres un analista de discurso con enfoque de genero.
+Evalua letras en espanol para detectar celos y control interpersonal.
 
-Tu tarea es identificar fragmentos que reflejen:
-- Control sobre los movimientos, relaciones o decisiones de la pareja
-- Comportamiento posesivo ("eres mía/mío", "no puedes salir sin mí")
-- Vigilancia o espionaje ("¿con quién estabas?", "te estaba mirando")
-- Amenazas veladas o explícitas ante la posibilidad de abandono
-- Justificación de los celos como muestra de amor ("te celo porque te quiero")
-- Restricción de la libertad de la pareja disfrazada de protección
-- Interrogatorios sobre la vida social o sentimental de la pareja
+Identifica fragmentos que incluyan:
+- restricciones de autonomia,
+- vigilancia o exigencia de rendicion de cuentas afectiva,
+- posesividad presentada como normal,
+- justificacion del control como prueba de amor.
 
-NO confundas con:
-- Expresiones de amor intenso sin componente de controles
-- Tristeza o nostalgia por una ruptura sin actitudes controladoras
-- Admiración o deseo mutuo y consentido
-
-Sé preciso: solo marca fragmentos donde el control o los celos sean explícitos o claramente implícitos en el contexto de la letra completa.
-
-Responde SIEMPRE con un JSON válido según el formato indicado por el usuario."""
+No marques afecto intenso, tristeza por ruptura o deseo mutuo cuando no exista control.
+Responde solo en JSON valido, sin markdown ni texto extra."""

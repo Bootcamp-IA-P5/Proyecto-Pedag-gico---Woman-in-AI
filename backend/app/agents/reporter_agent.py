@@ -1,6 +1,5 @@
 """
 Agente Reporter — orquestador principal
-========================================
 1. Llama al GuardianAgent para validar el input
 2. Si pasa la validación, lanza los 4 agentes en SECUENCIA (no en paralelo)
    para optimizar el uso de tokens y evitar saturación de la API
@@ -27,7 +26,6 @@ MENSAJES_ERROR = {
 
 
 class ReporterAgent:
-
     def __init__(self):
         self.guardian = GuardianAgent()
         self.agentes  = [

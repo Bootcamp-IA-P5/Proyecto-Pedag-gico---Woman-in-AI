@@ -253,3 +253,10 @@ data/**
 
 backend/.langgraph_api/
 *.pckl
+
+# Pipeline generated outputs
+backend/pipeline/artifacts/
+backend/pipeline/logs/
+
+data/processed/
+data/raw/

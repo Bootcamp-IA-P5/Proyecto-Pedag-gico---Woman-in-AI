@@ -29,7 +29,9 @@ def obtener_song(song_id: int):
 
 
 def obtener_lyrics(song_id: int):
-    return supabase.table("lyrics").select("*").eq("song_id", song_id).single().execute()
+    return (
+        supabase.table("lyrics").select("*").eq("song_id", song_id).single().execute()
+    )
 
 
 def listar_targets(limit: int):
@@ -44,7 +46,10 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
         return int(
             dim.get(
                 "puntuacion_final",
-                dim.get("puntuacion_openrouter", dim.get("puntuacion_groq", 0)),
+                dim.get(
+                    "puntuacion_openrouter",
+                    dim.get("puntuacion_groq", dim.get("puntuacion", 0)),
+                ),
             )
             or 0
         )
@@ -52,7 +57,10 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
     def get_fragmentos(nombre_dimension: str):
         dim = dimensiones.get(nombre_dimension, {})
         fragmentos = (
-            dim.get("fragmentos_openrouter") or dim.get("fragmentos_groq") or []
+            dim.get("fragmentos_openrouter")
+            or dim.get("fragmentos_groq")
+            or dim.get("fragmentos")
+            or []
         )
         return " | ".join(fragmentos) if fragmentos else None
 
@@ -228,11 +236,22 @@ async def _analizar_batch_desde_supabase(input: BatchInput, reset_existing: bool
             try:
                 cancion = await run_in_threadpool(obtener_song, song_id)
                 if not cancion.data:
-                    return {"song_id": song_id, "status": "skipped", "reason": "song_not_found"}
+                    return {
+                        "song_id": song_id,
+                        "status": "skipped",
+                        "reason": "song_not_found",
+                    }
 
                 letra_row = await run_in_threadpool(obtener_lyrics, song_id)
-                if not letra_row.data or not (letra_row.data.get("lyrics_text") or "").strip():
-                    return {"song_id": song_id, "status": "skipped", "reason": "lyrics_missing"}
+                if (
+                    not letra_row.data
+                    or not (letra_row.data.get("lyrics_text") or "").strip()
+                ):
+                    return {
+                        "song_id": song_id,
+                        "status": "skipped",
+                        "reason": "lyrics_missing",
+                    }
 
                 resultado = await analizar_cancion(
                     song_id=str(song_id),
@@ -272,7 +291,9 @@ async def _analizar_batch_desde_supabase(input: BatchInput, reset_existing: bool
         resultados = []
         for t in targets:
             try:
-                r = await asyncio.wait_for(procesar(t["song_id"]), timeout=timeout_per_song)
+                r = await asyncio.wait_for(
+                    procesar(t["song_id"]), timeout=timeout_per_song
+                )
             except asyncio.TimeoutError:
                 r = {
                     "song_id": t["song_id"],

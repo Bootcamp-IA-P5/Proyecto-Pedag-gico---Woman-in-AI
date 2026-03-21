@@ -14,6 +14,30 @@ load_dotenv()
 log = logging.getLogger(__name__)
 
 PROVEEDORES = {
+    "groq": {
+        "url": os.getenv(
+            "GROQ_URL",
+            "https://api.groq.com/openai/v1/chat/completions",
+        ),
+        "key": os.getenv("GROQ_API_KEY") or os.getenv("GROQ_KEY"),
+        "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+    },
+    "gemini": {
+        "url": os.getenv(
+            "GEMINI_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        ),
+        "key": os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
+        "model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+    },
+    "mistral": {
+        "url": os.getenv(
+            "MISTRAL_URL",
+            "https://api.mistral.ai/v1/chat/completions",
+        ),
+        "key": os.getenv("MISTRAL_API_KEY") or os.getenv("MISTRAL_KEY"),
+        "model": os.getenv("MISTRAL_MODEL", "mistral-small-latest"),
+    },
     "together": {
         "url": os.getenv(
             "TOGETHER_URL",
@@ -43,14 +67,16 @@ PROVEEDORES = {
             "OPEN_ROUTER_URL",
             "https://openrouter.ai/api/v1/chat/completions",
         ),
-        "key": os.getenv("OPEN_ROUTER_KEY"),
+        "key": os.getenv("OPEN_ROUTER_KEY")
+        or os.getenv("OPENROUTER_API_KEY"),
         "model": os.getenv("OPEN_ROUTER_MODEL", "openrouter/auto"),
     },
 }
 DEFAULT_PROVIDER_ORDER = [
     p.strip()
     for p in os.getenv(
-        "LLM_PROVIDER_ORDER", "together,compat,openrouter,github"
+        "LLM_PROVIDER_ORDER",
+        "groq,gemini,mistral,github,openrouter,together,compat",
     ).split(",")
     if p.strip()
 ]

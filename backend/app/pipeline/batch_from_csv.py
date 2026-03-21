@@ -82,7 +82,10 @@ def guardar_en_supabase(
         return int(
             dim.get(
                 "puntuacion_final",
-                dim.get("puntuacion_openrouter", dim.get("puntuacion_groq", 0)),
+                dim.get(
+                    "puntuacion_openrouter",
+                    dim.get("puntuacion_groq", dim.get("puntuacion", 0)),
+                ),
             )
             or 0
         )
@@ -90,7 +93,10 @@ def guardar_en_supabase(
     def get_fragmentos(nombre_dimension: str) -> str | None:
         dim = dimensiones.get(nombre_dimension, {})
         fragmentos = (
-            dim.get("fragmentos_openrouter") or dim.get("fragmentos_groq") or []
+            dim.get("fragmentos_openrouter")
+            or dim.get("fragmentos_groq")
+            or dim.get("fragmentos")
+            or []
         )
         return " | ".join(fragmentos) if fragmentos else None
 

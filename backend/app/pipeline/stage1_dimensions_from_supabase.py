@@ -44,10 +44,11 @@ async def procesar_song(song_id: int, timeout_seconds: int, logger) -> dict:
             resultado = await analizar_dimension(agent, letra, timeout_seconds)
             dimensiones.append(resultado)
         except Exception as exc:
+            err_msg = str(exc).strip() or exc.__class__.__name__
             errores.append(
                 {
                     "dimension": agent.dimension,
-                    "error": str(exc) or exc.__class__.__name__,
+                    "error": err_msg,
                 }
             )
             dimensiones.append(

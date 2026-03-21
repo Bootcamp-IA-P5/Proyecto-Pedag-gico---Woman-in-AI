@@ -355,6 +355,7 @@ async def _analizar_batch_desde_supabase(input: BatchInput, reset_existing: bool
                         "status": "error",
                         "reason": f"timeout_after_{timeout_per_song}s",
                     }
+
                 )
             elif isinstance(item, Exception):
                 resultados.append(

@@ -327,7 +327,6 @@ async def _analizar_batch_desde_supabase(input: BatchInput, reset_existing: bool
                 }
             except Exception as e:
                 return {"song_id": song_id, "status": "error", "reason": str(e)}
-
     if input.sequential or concurrency == 1:
         resultados = []
         for t in targets:
@@ -367,11 +366,9 @@ async def _analizar_batch_desde_supabase(input: BatchInput, reset_existing: bool
                 )
             else:
                 resultados.append(item)
-
     ok = sum(1 for r in resultados if r["status"] == "ok")
     errors = sum(1 for r in resultados if r["status"] == "error")
     skipped = sum(1 for r in resultados if r["status"] == "skipped")
-
     return {
         "ok": ok,
         "errors": errors,

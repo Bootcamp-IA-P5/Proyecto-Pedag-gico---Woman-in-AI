@@ -259,4 +259,4 @@ backend/pipeline/artifacts/
 backend/pipeline/logs/
 
 data/processed/
-data/raw/
+data/raw/.vscode/

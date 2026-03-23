@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import os
 from app.src.api.routes.analysis import router as analysis
 
 load_dotenv()
@@ -11,12 +12,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
+default_origins = [
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "https://vertice-frontend.onrender.com",
+]
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", ",".join(default_origins)).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://vertice-frontend.onrender.com",
-    ],
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -17,10 +17,15 @@ Guardarraíles implementados:
 import os
 import re
 import json
+import logging
 from groq import AsyncGroq
 from dotenv import load_dotenv
 
+from .base_agent import throttle_provider_request
+
 load_dotenv()
+
+log = logging.getLogger(__name__)
 
 MODEL = "llama-3.3-70b-versatile"
 
@@ -148,6 +153,11 @@ class GuardianAgent:
         # ── Fase 2: validación semántica con LLM ──────
         client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
         muestra = texto[:1000]
+
+        try:
+            await throttle_provider_request("groq", "guardian")
+        except Exception as exc:
+            log.warning("No se pudo aplicar throttle en guardian: %s", exc)
 
         response = await client.chat.completions.create(
             model=MODEL,

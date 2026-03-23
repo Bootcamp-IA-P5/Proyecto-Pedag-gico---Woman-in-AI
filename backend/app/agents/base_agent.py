@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from abc import ABC
 
 import httpx
@@ -111,6 +112,82 @@ _llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY_LIMIT)
 MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
 RETRY_BASE = float(os.getenv("LLM_RETRY_BASE", "2.0"))
 RETRY_ON_CODES = {429, 500, 502, 503, 504}  # códigos que disparan reintento
+
+
+_provider_rate_locks: dict[str, asyncio.Lock] = {}
+_provider_next_allowed_at: dict[str, float] = {}
+
+
+def _parse_positive_float(raw: str | None) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    return value
+
+
+def _provider_rpm(provider_name: str) -> float | None:
+    specific = _parse_positive_float(os.getenv(f"LLM_RPM_{provider_name.upper()}"))
+    if specific is not None:
+        return specific
+    return _parse_positive_float(os.getenv("LLM_RPM_DEFAULT"))
+
+
+def _min_interval_seconds(provider_name: str) -> float:
+    rpm = _provider_rpm(provider_name)
+    interval_from_rpm = (60.0 / rpm) if rpm else 0.0
+    floor_interval = _parse_positive_float(os.getenv("LLM_MIN_INTERVAL_SECONDS")) or 0.0
+    return max(interval_from_rpm, floor_interval)
+
+
+def _max_retry_after_seconds() -> float:
+    raw = _parse_positive_float(os.getenv("LLM_MAX_RETRY_AFTER_SECONDS"))
+    return raw if raw is not None else 45.0
+
+
+async def throttle_provider_request(provider_name: str, context_label: str) -> None:
+    min_interval = _min_interval_seconds(provider_name)
+    if min_interval <= 0:
+        return
+
+    lock = _provider_rate_locks.setdefault(provider_name, asyncio.Lock())
+    async with lock:
+        now = time.monotonic()
+        next_allowed = _provider_next_allowed_at.get(provider_name, now)
+        wait_seconds = max(0.0, next_allowed - now)
+
+        if wait_seconds > 0:
+            log.info(
+                "Throttle %s (%s): esperando %.2fs para respetar rate limit.",
+                provider_name,
+                context_label,
+                wait_seconds,
+            )
+            await asyncio.sleep(wait_seconds)
+
+        _provider_next_allowed_at[provider_name] = time.monotonic() + min_interval
+
+
+def _rate_limit_header_snapshot(response: httpx.Response) -> str:
+    interesting = [
+        "retry-after",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-tokens",
+    ]
+    found = []
+    for key in interesting:
+        value = response.headers.get(key)
+        if value:
+            found.append(f"{key}={value}")
+    return ", ".join(found) if found else "sin cabeceras de rate-limit"
 
 
 class BaseAgent(ABC):
@@ -238,6 +315,8 @@ async def _call_provider_json(
 
     for intento in range(1, MAX_RETRIES + 1):
         try:
+            await throttle_provider_request(provider_name, context_label)
+
             async with _llm_semaphore:
                 async with httpx.AsyncClient(timeout=float(os.getenv("LLM_TIMEOUT_SECONDS", "8"))) as client:
                     response = await client.post(
@@ -267,6 +346,23 @@ async def _call_provider_json(
             if response.status_code in RETRY_ON_CODES:
                 if intento < MAX_RETRIES:
                     wait = RETRY_BASE**intento
+                    if response.status_code == 429:
+                        retry_after_raw = response.headers.get("retry-after")
+                        retry_after = _parse_positive_float(retry_after_raw)
+                        if retry_after is not None:
+                            if retry_after > _max_retry_after_seconds():
+                                raise RuntimeError(
+                                    f"[{provider_name}] {context_label} rate-limited con retry-after={retry_after:.1f}s; "
+                                    "saltando proveedor para evitar bloqueo largo"
+                                )
+                            wait = max(wait, retry_after)
+
+                        log.warning(
+                            "[%s] %s -> HTTP 429. Rate headers: %s",
+                            provider_name,
+                            context_label,
+                            _rate_limit_header_snapshot(response),
+                        )
                     log.warning(
                         f"[{provider_name}] {context_label} -> HTTP {response.status_code} "
                         f"(intento {intento}/{MAX_RETRIES}), reintento en {wait:.1f}s"
@@ -289,6 +385,13 @@ async def _call_provider_json(
             ultimo_error = e
             if isinstance(e, httpx.HTTPStatusError):
                 status = e.response.status_code
+                if status == 429:
+                    log.warning(
+                        "[%s] %s -> HTTP 429 (sin exito). Rate headers: %s",
+                        provider_name,
+                        context_label,
+                        _rate_limit_header_snapshot(e.response),
+                    )
                 # 4xx (except 429) are usually request/config issues; retrying does not help.
                 if status == 402 or (400 <= status < 500 and status != 429):
                     detail = (e.response.text or "")[:400]

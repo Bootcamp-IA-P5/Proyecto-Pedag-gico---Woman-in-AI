@@ -94,6 +94,36 @@ services:
       - key: LLM_RETRY_BASE
         value: "2.0"
 
+      - key: LLM_CONCURRENCY_LIMIT
+        value: "1"
+
+      - key: LLM_RPM_DEFAULT
+        value: "8"
+
+      - key: LLM_RPM_GROQ
+        value: "8"
+
+      - key: LLM_RPM_GEMINI
+        value: "6"
+
+      - key: LLM_RPM_MISTRAL
+        value: "6"
+
+      - key: LLM_RPM_GITHUB
+        value: "5"
+
+      - key: LLM_RPM_OPENROUTER
+        value: "5"
+
+      - key: LLM_RPM_TOGETHER
+        value: "4"
+
+      - key: LLM_MIN_INTERVAL_SECONDS
+        value: "0.5"
+
+      - key: LLM_MAX_RETRY_AFTER_SECONDS
+        value: "45"
+
       - key: ANALYSIS_GUARDIAN_STRICT
         value: "false"
 
@@ -104,4 +134,4 @@ services:
         value: "0.75"
 
       - key: LLM_PROVIDER_ORDER
-        value: "groq,gemini,mistral,github,openrouter,together,compat"
+        value: "groq,gemini,mistral,github"

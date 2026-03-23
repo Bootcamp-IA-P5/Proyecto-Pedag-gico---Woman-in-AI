@@ -4,6 +4,8 @@ set -euo pipefail
 cd /workspaces/Vertice/backend
 mkdir -p pipeline/logs
 
+EMERGENCY_MODE="${EMERGENCY_MODE:-0}"
+
 # Conservative defaults to avoid provider throttling.
 export LLM_CONCURRENCY_LIMIT="${LLM_CONCURRENCY_LIMIT:-1}"
 export LLM_RPM_DEFAULT="${LLM_RPM_DEFAULT:-8}"
@@ -15,6 +17,20 @@ export LLM_RPM_OPENROUTER="${LLM_RPM_OPENROUTER:-5}"
 export LLM_RPM_TOGETHER="${LLM_RPM_TOGETHER:-4}"
 export LLM_MIN_INTERVAL_SECONDS="${LLM_MIN_INTERVAL_SECONDS:-0.5}"
 export LLM_PROVIDER_ORDER="${LLM_PROVIDER_ORDER:-groq,gemini,mistral,github}"
+export LLM_MAX_RETRY_AFTER_SECONDS="${LLM_MAX_RETRY_AFTER_SECONDS:-45}"
+
+if [[ "${EMERGENCY_MODE}" == "1" ]]; then
+  echo "[nightly] EMERGENCY_MODE=1 activo: perfil anti-429"
+  export LLM_CONCURRENCY_LIMIT="${LLM_CONCURRENCY_LIMIT:-1}"
+  export LLM_PROVIDER_ORDER="${LLM_PROVIDER_ORDER:-mistral,github,groq,gemini}"
+  export LLM_RPM_DEFAULT="${LLM_RPM_DEFAULT:-4}"
+  export LLM_RPM_MISTRAL="${LLM_RPM_MISTRAL:-4}"
+  export LLM_RPM_GITHUB="${LLM_RPM_GITHUB:-3}"
+  export LLM_RPM_GROQ="${LLM_RPM_GROQ:-2}"
+  export LLM_RPM_GEMINI="${LLM_RPM_GEMINI:-2}"
+  export LLM_MIN_INTERVAL_SECONDS="${LLM_MIN_INTERVAL_SECONDS:-1.0}"
+  export LLM_MAX_RETRY_AFTER_SECONDS="${LLM_MAX_RETRY_AFTER_SECONDS:-20}"
+fi
 
 # Retry strategy tuned for transient 429/5xx.
 export LLM_MAX_RETRIES="${LLM_MAX_RETRIES:-2}"

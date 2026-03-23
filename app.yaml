@@ -98,19 +98,19 @@ services:
         value: "1"
 
       - key: LLM_RPM_DEFAULT
-        value: "8"
+        value: "4"
 
       - key: LLM_RPM_GROQ
-        value: "8"
+        value: "2"
 
       - key: LLM_RPM_GEMINI
-        value: "6"
+        value: "2"
 
       - key: LLM_RPM_MISTRAL
-        value: "6"
+        value: "4"
 
       - key: LLM_RPM_GITHUB
-        value: "5"
+        value: "3"
 
       - key: LLM_RPM_OPENROUTER
         value: "5"
@@ -119,10 +119,10 @@ services:
         value: "4"
 
       - key: LLM_MIN_INTERVAL_SECONDS
-        value: "0.5"
+        value: "1.0"
 
       - key: LLM_MAX_RETRY_AFTER_SECONDS
-        value: "45"
+        value: "20"
 
       - key: ANALYSIS_GUARDIAN_STRICT
         value: "false"
@@ -134,4 +134,4 @@ services:
         value: "0.75"
 
       - key: LLM_PROVIDER_ORDER
-        value: "groq,gemini,mistral,github"
+        value: "mistral,github,groq,gemini"

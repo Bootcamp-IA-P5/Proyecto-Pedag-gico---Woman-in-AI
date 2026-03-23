@@ -1,0 +1,107 @@
+name: vertice-api
+services:
+  - name: backend
+    github:
+      # Una vez que tengas permiso, reemplaza OWNER/REPO
+      repo: Bootcamp-IA-P5/Vertice
+      branch: feature-set-up-backend-analysis-engine
+      deploy_on_push: true
+
+    # Build desde el directorio del backend
+    build:
+      context_dir: backend
+      dockerfile_path: Dockerfile
+
+    # Configuración HTTP
+    http_port: 8000
+
+    # Health check
+    health_check:
+      http_path: /
+
+    # Recursos
+    instance_count: 1
+    instance_size_slug: basic-xs
+
+    # Variables de entorno
+    envs:
+      - key: PORT
+        value: "8000"
+
+      - key: SUPABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${SUPABASE_URL}
+
+      - key: SUPABASE_KEY
+        scope: RUN_AND_BUILD_TIME
+        value: ${SUPABASE_KEY}
+
+      # LLM Providers
+      - key: GROQ_API_KEY
+        scope: RUN_TIME
+        value: ${GROQ_API_KEY}
+
+      - key: GROQ_MODEL
+        value: "llama-3.3-70b-versatile"
+
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        value: ${GEMINI_API_KEY}
+
+      - key: GEMINI_MODEL
+        value: "gemini-2.0-flash"
+
+      - key: MISTRAL_API_KEY
+        scope: RUN_TIME
+        value: ${MISTRAL_API_KEY}
+
+      - key: MISTRAL_MODEL
+        value: "mistral-small-latest"
+
+      - key: GITHUB_TOKEN
+        scope: RUN_TIME
+        value: ${GITHUB_TOKEN}
+
+      - key: TOGETHER_API_KEY
+        scope: RUN_TIME
+        value: ${TOGETHER_API_KEY}
+
+      - key: OPENROUTER_API_KEY
+        scope: RUN_TIME
+        value: ${OPENROUTER_API_KEY}
+
+      # Spotify (opcional)
+      - key: SPOTIPY_CLIENT_ID
+        scope: RUN_TIME
+        value: ${SPOTIPY_CLIENT_ID}
+
+      - key: SPOTIPY_CLIENT_SECRET
+        scope: RUN_TIME
+        value: ${SPOTIPY_CLIENT_SECRET}
+
+      # MusicBrainz
+      - key: MUSICBRAINZ_EMAIL
+        scope: RUN_TIME
+        value: ${MUSICBRAINZ_EMAIL}
+
+      # Analysis config
+      - key: LLM_TIMEOUT_SECONDS
+        value: "25"
+
+      - key: LLM_MAX_RETRIES
+        value: "3"
+
+      - key: LLM_RETRY_BASE
+        value: "2.0"
+
+      - key: ANALYSIS_GUARDIAN_STRICT
+        value: "false"
+
+      - key: ANALYSIS_PIPELINE_MODE
+        value: "simple"
+
+      - key: ANALYSIS_MIN_COVERAGE_FOR_CONCLUSIVE
+        value: "0.75"
+
+      - key: LLM_PROVIDER_ORDER
+        value: "groq,gemini,mistral,github,openrouter,together,compat"

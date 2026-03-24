@@ -1,5 +1,14 @@
 import { supabase } from "@/lib/supabase";
 
+function requireSupabase() {
+  if (!supabase) {
+    throw new Error(
+      "Faltan variables de Supabase en el frontend (VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY).",
+    );
+  }
+  return supabase;
+}
+
 export type SongRow = {
   id: number;
   title: string;
@@ -56,13 +65,14 @@ export function normalizeGenre(value: string | null | undefined): string {
 }
 
 async function fetchAllRows<T>(table: string, select: string, orderBy: string, ascending = true): Promise<T[]> {
+  const client = requireSupabase();
   const pageSize = 1000;
   let from = 0;
   let all: T[] = [];
 
   while (true) {
     const to = from + pageSize - 1;
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from(table)
       .select(select)
       .order(orderBy, { ascending })

@@ -28,7 +28,8 @@ export type AnalyzeLyricsInput = {
   letra: string;
 };
 
-const rawApiBase = import.meta.env.VITE_API_BASE_URL || "https://vertice-x243o.ondigitalocean.app";
+const runtimeApiBase = window.__VERTICE_ENV?.VITE_API_BASE_URL;
+const rawApiBase = runtimeApiBase || import.meta.env.VITE_API_BASE_URL || "https://vertice-x243o.ondigitalocean.app";
 const API_BASE = rawApiBase.trim().replace(/^['\"]|['\"]$/g, "").replace(/\/+$/, "");
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 60000) {

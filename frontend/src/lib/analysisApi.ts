@@ -28,7 +28,8 @@ export type AnalyzeLyricsInput = {
   letra: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://vertice-x243o.ondigitalocean.app";
+const rawApiBase = import.meta.env.VITE_API_BASE_URL || "https://vertice-x243o.ondigitalocean.app";
+const API_BASE = rawApiBase.trim().replace(/^['\"]|['\"]$/g, "").replace(/\/+$/, "");
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 60000) {
   const controller = new AbortController();
@@ -37,17 +38,6 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
-  }
-}
-
-async function assertBackendAvailable() {
-  try {
-    const probe = await fetchWithTimeout(`${API_BASE}/`, { method: "GET" }, 3000);
-    if (!probe.ok) {
-      throw new Error("Backend no disponible");
-    }
-  } catch {
-    throw new Error(`No hay conexión con el backend (${API_BASE}). Verifica despliegue activo y CORS para el origen actual.`);
   }
 }
 
@@ -60,8 +50,6 @@ async function parseResponseBody(response: Response) {
 }
 
 export async function analyzeLyrics(payload: AnalyzeLyricsInput): Promise<AnalysisResult> {
-  await assertBackendAvailable();
-
   let response: Response;
   try {
     response = await fetchWithTimeout(`${API_BASE}/analysis/lyrics`, {
@@ -73,7 +61,7 @@ export async function analyzeLyrics(payload: AnalyzeLyricsInput): Promise<Analys
     if (err?.name === "AbortError") {
       throw new Error("El análisis está tardando demasiado. Intenta con una letra más corta o revisa el backend.");
     }
-    throw err;
+    throw new Error(`No hay conexión con el backend (${API_BASE}). ${err?.message || "Verifica despliegue activo y CORS para el origen actual."}`);
   }
 
   const data = await parseResponseBody(response);
@@ -86,8 +74,6 @@ export async function analyzeLyrics(payload: AnalyzeLyricsInput): Promise<Analys
 }
 
 export async function analyzeSongById(songId: number): Promise<AnalysisResult> {
-  await assertBackendAvailable();
-
   let response: Response;
   try {
     response = await fetchWithTimeout(`${API_BASE}/analysis/song/${songId}`, {
@@ -98,7 +84,7 @@ export async function analyzeSongById(songId: number): Promise<AnalysisResult> {
     if (err?.name === "AbortError") {
       throw new Error("El análisis por ID está tardando demasiado. Verifica si el backend está disponible.");
     }
-    throw err;
+    throw new Error(`No hay conexión con el backend (${API_BASE}). ${err?.message || "Verifica despliegue activo y CORS para el origen actual."}`);
   }
 
   const data = await parseResponseBody(response);

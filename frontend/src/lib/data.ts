@@ -9,6 +9,15 @@ function requireSupabase() {
   return supabase;
 }
 
+function formatSupabaseError(table: string, error: any): Error {
+  const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
+  const message = typeof error?.message === "string" ? error.message : "Error desconocido";
+  const hint = typeof error?.hint === "string" && error.hint.trim().length
+    ? ` Hint: ${error.hint}`
+    : "";
+  return new Error(`Supabase (${table}) [${code}]: ${message}.${hint}`);
+}
+
 export type SongRow = {
   id: number;
   title: string;
@@ -78,7 +87,7 @@ async function fetchAllRows<T>(table: string, select: string, orderBy: string, a
       .order(orderBy, { ascending })
       .range(from, to);
 
-    if (error) throw error;
+    if (error) throw formatSupabaseError(table, error);
     const page = (data ?? []) as T[];
     all = all.concat(page);
     if (page.length < pageSize) break;

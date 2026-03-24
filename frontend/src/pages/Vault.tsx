@@ -14,6 +14,9 @@ type SortField = "title" | "artist" | "streams" | "year";
 
 export default function Vault() {
   const { data: songs = [], isLoading, error } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
+  const vaultErrorText = error instanceof Error
+    ? error.message
+    : "No se pudo cargar la bóveda desde Supabase.";
 
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("streams");
@@ -131,7 +134,7 @@ export default function Vault() {
 
         {error && (
           <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-            No se pudo cargar la bóveda desde Supabase.
+            {vaultErrorText}
           </div>
         )}
 

@@ -27,6 +27,57 @@ const INITIAL_FORM: FormState = {
   letra: "",
 };
 
+type ProviderDimension = {
+  name: "Groq" | "OpenRouter";
+  score?: number;
+  fragments: string[];
+};
+
+function round1(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function getDimensionProviders(d: AnalysisResult["dimensiones"][number]): ProviderDimension[] {
+  return [
+    {
+      name: "Groq",
+      score: typeof d.puntuacion_groq === "number" ? d.puntuacion_groq : undefined,
+      fragments: Array.isArray(d.fragmentos_groq) ? d.fragmentos_groq.filter(Boolean) : [],
+    },
+    {
+      name: "OpenRouter",
+      score: typeof d.puntuacion_openrouter === "number" ? d.puntuacion_openrouter : undefined,
+      fragments: Array.isArray(d.fragmentos_openrouter) ? d.fragmentos_openrouter.filter(Boolean) : [],
+    },
+  ];
+}
+
+function computeEvidenceAwareScore(providers: ProviderDimension[]): number | null {
+  const scored = providers.filter((p) => typeof p.score === "number") as Array<ProviderDimension & { score: number }>;
+  if (!scored.length) return null;
+
+  // If at least one provider returns textual evidence, weight scores by evidence volume.
+  const withEvidence = scored.filter((p) => p.fragments.length > 0);
+  if (withEvidence.length) {
+    const weightedTotal = withEvidence.reduce((acc, p) => acc + p.score * p.fragments.length, 0);
+    const weight = withEvidence.reduce((acc, p) => acc + p.fragments.length, 0);
+    if (weight > 0) return round1(weightedTotal / weight);
+  }
+
+  return round1(scored.reduce((acc, p) => acc + p.score, 0) / scored.length);
+}
+
+function getMergedEvidence(providers: ProviderDimension[]): string[] {
+  return Array.from(
+    new Set(
+      providers
+        .flatMap((p) => p.fragments)
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0),
+    ),
+  );
+}
+
 export default function Index() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isLoading, setIsLoading] = useState(false);
@@ -176,13 +227,29 @@ export default function Index() {
 
               <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                 {result.dimensiones.map((d) => {
-                  const g = d.puntuacion_groq ?? 0;
-                  const o = d.puntuacion_openrouter ?? 0;
-                  const avg = Math.round(((g + o) / 2) * 10) / 10;
+                  const providers = getDimensionProviders(d);
+                  const evidenceAware = computeEvidenceAwareScore(providers);
+                  const mergedEvidence = getMergedEvidence(providers);
                   return (
                     <div key={d.dimension} className="rounded-md border border-border/40 bg-background/30 p-3">
                       <p className="text-sm font-medium text-foreground">{d.dimension}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Groq: {g} · OpenRouter: {o} · Promedio: {avg}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {providers.map((p) => `${p.name}: ${typeof p.score === "number" ? p.score : "N/D"}`).join(" · ")}
+                        {` · Score con evidencia: ${evidenceAware ?? "N/D"}`}
+                      </p>
+
+                      {mergedEvidence.length > 0 ? (
+                        <div className="mt-2 rounded-md border border-border/40 bg-background/40 p-2">
+                          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Dónde y por qué se detectó sesgo</p>
+                          <ul className="mt-1 space-y-1">
+                            {mergedEvidence.slice(0, 4).map((fragment, idx) => (
+                              <li key={`${d.dimension}-${idx}`} className="text-xs text-foreground/90">"{fragment}"</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">Sin fragmentos de evidencia textual para esta dimensión.</p>
+                      )}
                     </div>
                   );
                 })}

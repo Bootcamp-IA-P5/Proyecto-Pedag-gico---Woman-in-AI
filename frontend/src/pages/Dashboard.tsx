@@ -24,8 +24,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function Dashboard() {
-  const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
-  const { data: evaluations = [] } = useQuery({ queryKey: ["evaluations"], queryFn: fetchEvaluations });
+  const { data: songs = [], error: songsError } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
+  const { data: evaluations = [], error: evalsError } = useQuery({ queryKey: ["evaluations"], queryFn: fetchEvaluations });
+  const dashboardError = songsError instanceof Error
+    ? songsError.message
+    : evalsError instanceof Error
+      ? evalsError.message
+      : null;
 
   const dominantGenre = useMemo(() => {
     const byGenre = new Map<string, number>();
@@ -147,6 +152,12 @@ export default function Dashboard() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <PageHeader icon={LayoutDashboard} title="Centro de Mando" subtitle="Visión general del ecosistema musical" />
+
+      {dashboardError && (
+        <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          {dashboardError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard

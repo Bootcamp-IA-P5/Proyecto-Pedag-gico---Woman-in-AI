@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { LayoutDashboard, Music, TrendingUp, Users, Headphones, BarChart3 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -44,16 +44,6 @@ export default function Dashboard() {
       : { genre: "N/A", count: 0, pct: 0 };
   }, [songs]);
 
-  const topYear = useMemo(() => {
-    const yearStreams = new Map<number, number>();
-    songs.forEach((s) => {
-      if (!s.year) return;
-      yearStreams.set(s.year, (yearStreams.get(s.year) || 0) + parseStreams(s.streams));
-    });
-    const top = [...yearStreams.entries()].sort((a, b) => b[1] - a[1])[0];
-    return top ? { year: top[0], streams: top[1] } : { year: "N/A", streams: 0 };
-  }, [songs]);
-
   const genderDistribution = useMemo(() => {
     const male = songs.filter((s) => normalizeArtistGender(s.artist_gender) === "Masculino").length;
     const female = songs.filter((s) => normalizeArtistGender(s.artist_gender) === "Femenino").length;
@@ -68,15 +58,20 @@ export default function Dashboard() {
     ];
   }, [songs]);
 
-  const monthlyStreams = useMemo(() => {
-    const labels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    const arr = labels.map((month) => ({ month, streams: 0 }));
-    songs.forEach((s) => {
-      if (!s.created_at) return;
-      const month = new Date(s.created_at).getMonth();
-      arr[month].streams += parseStreams(s.streams);
-    });
-    return arr;
+  const topSongsByStreams = useMemo(() => {
+    return songs
+      .map((s) => ({
+        title: s.title,
+        artist: s.artist,
+        streams: parseStreams(s.streams),
+      }))
+      .sort((a, b) => b.streams - a.streams)
+      .slice(0, 10)
+      .reverse()
+      .map((row) => ({
+        label: `${row.title} · ${row.artist}`,
+        streams: row.streams,
+      }));
   }, [songs]);
 
   const topArtists = useMemo(() => {
@@ -198,24 +193,19 @@ export default function Dashboard() {
         <GlassCard delay={0.3} className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Streams por Mes</h3>
-              <p className="text-xs text-muted-foreground">Calculado desde songs.created_at + songs.streams</p>
+              <h3 className="text-sm font-semibold text-foreground">Top 10 canciones por streams</h3>
+              <p className="text-xs text-muted-foreground">Ranking directo por `songs.streams`</p>
             </div>
             <BarChart3 className="w-4 h-4 text-muted-foreground" />
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={monthlyStreams}>
-              <defs>
-                <linearGradient id="streamGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(265, 90%, 65%)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="hsl(265, 90%, 65%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="month" axisLine={false} tickLine={false} />
-              <YAxis axisLine={false} tickLine={false} />
+            <BarChart data={topSongsByStreams} layout="vertical" margin={{ left: 40, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis type="number" axisLine={false} tickLine={false} />
+              <YAxis dataKey="label" type="category" width={220} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="streams" stroke="hsl(265, 90%, 65%)" strokeWidth={2} fill="url(#streamGradient)" name="Streams" />
-            </AreaChart>
+              <Bar dataKey="streams" fill="hsl(46 100% 50%)" radius={[0, 6, 6, 0]} name="Streams" />
+            </BarChart>
           </ResponsiveContainer>
         </GlassCard>
 

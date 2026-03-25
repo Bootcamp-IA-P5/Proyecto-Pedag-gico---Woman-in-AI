@@ -19,8 +19,8 @@ export function PageHeader({ title, subtitle, icon: Icon }: PageHeaderProps) {
         <Icon className="w-6 h-6 text-primary-foreground" />
       </div>
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+        <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+        <p className="text-base text-muted-foreground">{subtitle}</p>
       </div>
     </motion.div>
   );

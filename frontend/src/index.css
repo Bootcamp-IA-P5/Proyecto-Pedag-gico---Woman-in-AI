@@ -65,6 +65,60 @@
     --sidebar-border: 220 33% 28%;
     --sidebar-ring: 46 100% 50%;
   }
+
+  .light {
+    --background: 210 60% 98%;
+    --foreground: 222 35% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 35% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 35% 16%;
+
+    --primary: 46 95% 47%;
+    --primary-foreground: 220 62% 12%;
+
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 35% 20%;
+
+    --muted: 210 45% 93%;
+    --muted-foreground: 220 15% 38%;
+
+    --accent: 46 92% 52%;
+    --accent-foreground: 220 62% 12%;
+
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 28% 85%;
+    --input: 214 28% 85%;
+    --ring: 46 95% 47%;
+
+    --neon-purple: 46 95% 47%;
+    --neon-blue: 218 65% 48%;
+    --neon-cyan: 194 70% 45%;
+    --neon-pink: 42 95% 52%;
+    --neon-green: 158 60% 40%;
+
+    --glass-bg: 0 0% 100%;
+    --glass-border: 214 28% 85%;
+    --glass-highlight: 46 95% 47%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(46 95% 47%), hsl(42 95% 52%));
+    --gradient-accent: linear-gradient(135deg, hsl(210 35% 94%), hsl(210 45% 90%));
+    --gradient-warm: linear-gradient(135deg, hsl(46 95% 47%), hsl(42 95% 52%));
+    --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 60% 98%));
+
+    --sidebar-background: 210 60% 96%;
+    --sidebar-foreground: 222 25% 25%;
+    --sidebar-primary: 46 95% 47%;
+    --sidebar-primary-foreground: 220 62% 12%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 222 35% 16%;
+    --sidebar-border: 214 28% 85%;
+    --sidebar-ring: 46 95% 47%;
+  }
 }
 
 @layer base {
@@ -74,6 +128,8 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
   }
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
@@ -121,6 +177,11 @@
       linear-gradient(hsl(220 33% 32% / 0.5) 1px, transparent 1px),
       linear-gradient(90deg, hsl(220 33% 32% / 0.5) 1px, transparent 1px);
     background-size: 60px 60px;
+  }
+  .light .bg-grid-pattern {
+    background-image:
+      linear-gradient(hsl(214 28% 85% / 0.65) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(214 28% 85% / 0.65) 1px, transparent 1px);
   }
   .scrollbar-thin {
     scrollbar-width: thin;

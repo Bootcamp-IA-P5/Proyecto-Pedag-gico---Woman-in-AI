@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { title: "Analizar", path: "/", icon: Sparkles },
+  { title: "Metodología", path: "/", icon: BookOpenText },
+  { title: "Analizar", path: "/analizar", icon: Sparkles },
   { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { title: "Explorador", path: "/explorer", icon: Search },
   { title: "Bóveda", path: "/vault", icon: Database },
-  { title: "Metodología", path: "/metodologia", icon: BookOpenText },
   { title: "Perfil", path: "/profile", icon: User },
 ];
 
@@ -42,7 +42,10 @@ export function AppSidebar() {
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-1">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isMethodologyItem = item.path === "/";
+          const isActive = isMethodologyItem
+            ? location.pathname === "/" || location.pathname === "/metodologia"
+            : location.pathname === item.path;
           return (
             <NavLink
               key={item.path}

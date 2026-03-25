@@ -98,12 +98,26 @@ async function fetchAllRows<T>(table: string, select: string, orderBy: string, a
 }
 
 export async function fetchSongs(): Promise<SongRow[]> {
-  const rows = await fetchAllRows<SongRow>(
-    "songs",
-    "id,title,artist,genre,year,streams,duration_seg,artist_gender,created_at",
-    "id",
-    true,
-  );
+  const client = requireSupabase();
+  const pageSize = 1000;
+  let from = 0;
+  let rows: SongRow[] = [];
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await client
+      .from("songs")
+      .select("id,title,artist,genre,year,streams,duration_seg,artist_gender,created_at,lyrics_status")
+      .eq("lyrics_status", "completed")
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) throw formatSupabaseError("songs", error);
+    const page = ((data ?? []) as Array<SongRow & { lyrics_status?: string }>);
+    rows = rows.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
 
   return rows.map((row) => ({
     ...row,

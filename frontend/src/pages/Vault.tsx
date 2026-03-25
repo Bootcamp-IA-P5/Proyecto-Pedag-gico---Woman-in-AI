@@ -105,7 +105,6 @@ export default function Vault() {
             placeholder="Buscar por título, artista o género..."
             className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground"
           />
-          <span className="text-xs font-mono text-muted-foreground">{isLoading ? "cargando..." : `${filtered.length} canciones`}</span>
         </div>
       </GlassCard>
 

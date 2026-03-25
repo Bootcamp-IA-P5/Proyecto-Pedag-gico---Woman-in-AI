@@ -1,12 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { VerticeSpotlight } from "../vertice/VerticeSpotlight";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles } from "lucide-react";
+import { Moon, Sparkles, Sun } from "lucide-react";
 
 export function AppLayout() {
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("vertice-theme");
+    const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+    const useLight = savedTheme ? savedTheme === "light" : prefersLight;
+    setIsLightMode(useLight);
+    document.documentElement.classList.toggle("light", useLight);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isLightMode;
+    setIsLightMode(next);
+    document.documentElement.classList.toggle("light", next);
+    localStorage.setItem("vertice-theme", next ? "light" : "dark");
+  };
 
   return (
     <div className="flex min-h-screen bg-background bg-grid-pattern">
@@ -26,26 +42,23 @@ export function AppLayout() {
             <span className="text-sm text-muted-foreground font-mono">v0.1.0</span>
           </div>
 
-          <button
-            onClick={() => setSpotlightOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-border/50 hover:border-primary/50 transition-all group cursor-pointer"
-          >
-            <Search className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-              Pregúntale a Vértice AI...
-            </span>
-            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">
-              ⌘K
-            </kbd>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-background/40 text-sm font-medium hover:border-primary/50 transition-colors"
+            >
+              {isLightMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              <span className="hidden sm:inline">{isLightMode ? "Modo oscuro" : "Modo claro"}</span>
+            </button>
 
-          <button
-            onClick={() => setSpotlightOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">Vértice AI</span>
-          </button>
+            <button
+              onClick={() => setSpotlightOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Vértice AI</span>
+            </button>
+          </div>
         </header>
 
         {/* Page Content */}

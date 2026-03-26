@@ -9,6 +9,7 @@ import { FeedbackBox } from "@/components/feedback/FeedbackBox";
 import { cn } from "@/lib/utils";
 import { fetchSongs, normalizeArtistGender, normalizeGenre, parseStreams } from "@/lib/data";
 import { analyzeSongById, AnalysisResult } from "@/lib/analysisApi";
+import { recordProfileActivity } from "@/lib/profileActivity";
 
 const chartColors = [
   "hsl(330, 85%, 60%)", "hsl(265, 90%, 65%)", "hsl(155, 80%, 50%)",
@@ -132,6 +133,15 @@ export default function Explorer() {
     try {
       const result = await analyzeSongById(songId);
       setAnalysisResult(result);
+      const selectedSong = songs.find((song) => song.id === songId);
+      recordProfileActivity({
+        songId: String(songId),
+        title: selectedSong?.title || result.titulo,
+        artist: selectedSong?.artist || result.artista,
+        score: Number(result.puntuacion_global ?? 0),
+        level: result.nivel_global ?? "Sin nivel",
+        source: "explorer",
+      });
     } catch (err: any) {
       setAnalysisError(err?.message || "No se pudo analizar la canción seleccionada.");
     } finally {

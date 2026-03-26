@@ -1,5 +1,6 @@
 import os
 import asyncio
+import hashlib
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -136,6 +137,78 @@ def guardar_en_supabase(song_id: int, lyrics_id: int, resultado: dict):
     )
 
 
+def guardar_analisis_manual(
+    titulo: str,
+    artista: str,
+    genero_musical: str,
+    letra: str,
+    resultado: dict,
+) -> tuple[int, int]:
+    """
+    Crea una canción, letra y evaluación para análisis manual.
+    Retorna (song_id, lyrics_id) para referencia.
+    """
+    # 1. Crear song si no existe
+    existing_song = (
+        supabase.table("songs")
+        .select("id")
+        .eq("title", titulo)
+        .eq("artist", artista)
+        .limit(1)
+        .execute()
+    )
+    
+    if existing_song.data and len(existing_song.data) > 0:
+        song_id = existing_song.data[0]["id"]
+    else:
+        song_insert = (
+            supabase.table("songs")
+            .insert(
+                {
+                    "title": titulo,
+                    "artist": artista,
+                    "genre": genero_musical,
+                    "lyrics_status": "completed",
+                }
+            )
+            .execute()
+        )
+        if not song_insert.data:
+            raise HTTPException(
+                status_code=500,
+                detail="No se pudo crear la canción en la base de datos",
+            )
+        song_id = song_insert.data[0]["id"]
+    
+    # 2. Crear lyrics para la canción
+    lyrics_insert = (
+        supabase.table("lyrics")
+        .insert(
+            {
+                "song_id": song_id,
+                "lyrics_text": letra,
+                "lyrics_hash": hashlib.sha256(letra.encode("utf-8")).hexdigest(),
+                "word_count": len(letra.split()),
+                "verse_count": 0,
+                "language_detected": "es",
+                "source": "manual",
+            }
+        )
+        .execute()
+    )
+    if not lyrics_insert.data:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo guardar la letra en la base de datos",
+        )
+    lyrics_id = lyrics_insert.data[0]["id"]
+    
+    # 3. Guardar evaluación
+    guardar_en_supabase(song_id, lyrics_id, resultado)
+    
+    return song_id, lyrics_id
+
+
 class LyricInput(BaseModel):
     titulo: str
     artista: str
@@ -159,13 +232,29 @@ async def analizar_letra_nueva(input: LyricInput):
             status_code=400,
             detail="La letra es demasiado corta para analizarla",
         )
-    return await analizar_cancion(
+    resultado = await analizar_cancion(
         song_id="manual",
         titulo=input.titulo,
         artista=input.artista,
         genero_musical=input.genero_musical,
         letra=input.letra,
     )
+    
+    # Guardar en BD automáticamente
+    song_id, lyrics_id = await run_in_threadpool(
+        guardar_analisis_manual,
+        titulo=input.titulo,
+        artista=input.artista,
+        genero_musical=input.genero_musical,
+        letra=input.letra,
+        resultado=resultado,
+    )
+    
+    # Añadir referencia de BD al resultado retornado
+    resultado["song_id"] = song_id
+    resultado["lyrics_id"] = lyrics_id
+    
+    return resultado
 
 
 @router.post("/song/{song_id}")

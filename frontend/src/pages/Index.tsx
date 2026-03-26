@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FeedbackBox } from "@/components/feedback/FeedbackBox";
 import { analyzeLyrics, type AnalysisResult } from "@/lib/analysisApi";
+import { recordProfileActivity } from "@/lib/profileActivity";
 
 const SCORE_STYLES: Record<string, string> = {
   "0": "text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
@@ -114,6 +115,14 @@ export default function Index() {
         letra: form.letra.trim(),
       });
       setResult(response);
+      recordProfileActivity({
+        songId: String(response.song_id ?? `${form.titulo.trim()}-${form.artista.trim()}`),
+        title: response.titulo,
+        artist: response.artista,
+        score: Number(response.puntuacion_global ?? 0),
+        level: response.nivel_global ?? "Sin nivel",
+        source: "manual",
+      });
     } catch (err: any) {
       setError(err?.message || "No fue posible analizar la canción en este momento.");
     } finally {

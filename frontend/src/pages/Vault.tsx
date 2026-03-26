@@ -9,6 +9,7 @@ import { FeedbackBox } from "@/components/feedback/FeedbackBox";
 import { cn } from "@/lib/utils";
 import { fetchSongs, formatDuration, parseStreams } from "@/lib/data";
 import { analyzeSongById, AnalysisResult } from "@/lib/analysisApi";
+import { recordProfileActivity } from "@/lib/profileActivity";
 
 type SortField = "title" | "artist" | "streams" | "year";
 
@@ -65,6 +66,15 @@ export default function Vault() {
     try {
       const result = await analyzeSongById(songId);
       setAnalysisResult(result);
+      const selectedSong = songs.find((song) => song.id === songId);
+      recordProfileActivity({
+        songId: String(songId),
+        title: selectedSong?.title || result.titulo,
+        artist: selectedSong?.artist || result.artista,
+        score: Number(result.puntuacion_global ?? 0),
+        level: result.nivel_global ?? "Sin nivel",
+        source: "vault",
+      });
     } catch (err: any) {
       setAnalysisError(err?.message || "No se pudo analizar la canción seleccionada.");
     } finally {
@@ -137,19 +147,21 @@ export default function Vault() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="grid grid-cols-[40px_minmax(180px,1fr)_minmax(180px,1fr)_120px_80px_120px_240px] gap-3 px-3 py-2.5 border-b border-border/50 items-center">
-          <span className="text-xs text-muted-foreground">#</span>
-          <SortHeader field="title" label="Título" />
-          <SortHeader field="artist" label="Artista" />
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Género</span>
-          <SortHeader field="year" label="Año" />
-          <SortHeader field="streams" label="Streams" />
-          <span className="text-xs text-muted-foreground text-right">Acciones</span>
-        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+            {/* Header */}
+            <div className="grid grid-cols-[40px_minmax(180px,1fr)_minmax(180px,1fr)_120px_80px_120px_240px] gap-3 px-3 py-2.5 border-b border-border/50 items-center">
+              <span className="text-xs text-muted-foreground">#</span>
+              <SortHeader field="title" label="Título" />
+              <SortHeader field="artist" label="Artista" />
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Género</span>
+              <SortHeader field="year" label="Año" />
+              <SortHeader field="streams" label="Streams" />
+              <span className="text-xs text-muted-foreground text-right">Acciones</span>
+            </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-border/30">
+            {/* Rows */}
+            <div className="divide-y divide-border/30">
           {isLoading && (
             <div className="px-3 py-6 text-sm text-muted-foreground">Cargando catálogo...</div>
           )}
@@ -219,6 +231,8 @@ export default function Vault() {
           {!isLoading && filtered.length === 0 && (
             <div className="px-3 py-6 text-sm text-muted-foreground">No hay canciones para mostrar con el filtro actual.</div>
           )}
+            </div>
+          </div>
         </div>
 
         {canShowMore && (

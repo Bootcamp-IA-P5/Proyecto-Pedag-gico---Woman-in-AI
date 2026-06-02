@@ -19,7 +19,7 @@
 
 **Vértice** es un proyecto que combina *web scraping*, procesamiento de datos y **agentes de IA basados en LLMs** para detectar y cuantificar sesgos de género presentes en letras de canciones en español.
 
-El sistema recopila letras de canciones populares de múltiples fuentes (Spotify, Deezer, YouTube, Genius), las normaliza, y las evalúa a través de 4 agentes especializados de IA que analizan distintas dimensiones del sesgo de género. Los resultados se almacenan en **Supabase** y se visualizan a través de un frontend en React.
+El sistema recopila letras de canciones populares de múltiples fuentes (Spotify, Deezer, YouTube, Genius), las normaliza, y las evalúa a través de 7 agentes especializados de IA que analizan distintas dimensiones del sesgo de género. Los resultados se almacenan en **Supabase** y se visualizan a través de un frontend en React.
 
 ---
 
@@ -51,7 +51,7 @@ Vertice/
 
 ## 🤖 Agentes de Análisis
 
-El núcleo del proyecto son **4 agentes especializados** que analizan las letras en paralelo usando el modelo **LLaMA 3.3 70B** a través de la API de **Groq**. Cada agente evalúa una dimensión distinta del sesgo de género y devuelve una puntuación de **0 a 3**:
+El núcleo del proyecto son **7 agentes especializados** que analizan las letras en secuencial usando el modelo **LLaMA 3.3 70B** a través de la API de **Groq**. Cada agente evalúa una dimensión distinta del sesgo de género y devuelve una puntuación de **0 a 3**:
 
 | Agente | Dimensión | Qué detecta |
 |--------|-----------|-------------|

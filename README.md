@@ -252,7 +252,9 @@ El directorio `data/` organiza los datos en tres etapas del pipeline:
 
 ## 👥 Equipo
 
-Proyecto desarrollado por **Bootcamp IA P5** — Women in AI.
+Proyecto desarrollado por **Bootcamp IA P5** — Women in AI. 
+
+(https://vertice-ia-m8kfr.ondigitalocean.app/)
 
 | Nombre | LinkedIn | GitHub |
 |--------|----------|--------|
